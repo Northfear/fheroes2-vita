@@ -216,7 +216,7 @@ namespace
             _show = enable;
         }
 
-        virtual bool isVisible() const
+        virtual bool isVisible() const override
         {
             return _show;
         }
