@@ -51,6 +51,7 @@ namespace AI
     {
         int spellID = -1;
         int32_t cell = -1;
+        double value = 0.0;
     };
 
     struct SpellcastOutcome
@@ -95,7 +96,7 @@ namespace AI
         SpellcastOutcome spellResurrectValue( const Spell & spell, Battle::Arena & arena ) const;
         SpellcastOutcome spellSummonValue( const Spell & spell ) const;
         SpellcastOutcome spellEffectValue( const Spell & spell, const Battle::Units & targets ) const;
-        double spellEffectValue( const Spell & spell, const Battle::Unit & target, bool targetIsLast ) const;
+        double spellEffectValue( const Spell & spell, const Battle::Unit & target, bool targetIsLast, bool forDispell ) const;
 
         // turn variables that wouldn't persist
         const HeroBase * _commander = nullptr;
@@ -105,6 +106,7 @@ namespace AI
         double _myShooterStr = 0;
         double _enemyShooterStr = 0;
         double _enemyAverageSpeed = 0;
+        double _enemySpellStrength = 0;
         int _highestDamageExpected = 0;
         bool _attackingCastle = false;
         bool _defendingCastle = false;

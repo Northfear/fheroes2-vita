@@ -285,7 +285,7 @@ Battle::Arena::Arena( Army & a1, Army & a2, s32 index, bool local )
     else
     // set obstacles
     {
-        icn_covr = Maps::ScanAroundObject( index, MP2::OBJ_CRATER ).size() ? GetCovr( world.GetTiles( index ).GetGround() ) : ICN::UNKNOWN;
+        icn_covr = Rand::Get( 0, 99 ) < 40 ? GetCovr( world.GetTiles( index ).GetGround() ) : ICN::UNKNOWN;
 
         if ( icn_covr != ICN::UNKNOWN )
             board.SetCovrObjects( icn_covr );
@@ -433,7 +433,7 @@ void Battle::Arena::Turns( void )
         Force::UpdateOrderUnits( *army1, *army2, *armies_order );
 
     while ( BattleValid() && NULL != ( current_troop = Force::GetCurrentUnit( *army1, *army2, current_troop, true ) ) ) {
-        current_color = current_troop->GetArmyColor();
+        current_color = current_troop->GetCurrentOrArmyColor();
 
         // first turn: castle and catapult action
         if ( castle ) {
@@ -470,7 +470,7 @@ void Battle::Arena::Turns( void )
     // can skip move ?
     if ( Settings::Get().ExtBattleSoftWait() ) {
         while ( BattleValid() && NULL != ( current_troop = Force::GetCurrentUnit( *army1, *army2, current_troop, false ) ) ) {
-            current_color = current_troop->GetArmyColor();
+            current_color = current_troop->GetCurrentOrArmyColor();
 
             // set bridge passable
             if ( bridge )
@@ -578,9 +578,14 @@ Battle::Indexes Battle::Arena::GetPath( const Unit & b, const Position & dst )
     return result;
 }
 
+Battle::Indexes Battle::Arena::CalculateTwoMoveOverlap( int32_t indexTo, uint32_t movementRange ) const
+{
+    return _pathfinder.findTwoMovesOverlap( indexTo, movementRange );
+}
+
 std::pair<int, uint32_t> Battle::Arena::CalculateMoveToUnit( const Unit & target )
 {
-    std::pair<int, uint32_t> result = {-1, MAXU16};
+    std::pair<int, uint32_t> result = { -1, MAXU16 };
 
     const Position & pos = target.GetPosition();
     const Cell * head = pos.GetHead();
