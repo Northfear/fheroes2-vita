@@ -403,67 +403,68 @@ namespace fheroes2
         , _height( 0 )
         , _singleLayer( false )
     {
-        resize( image_.width(), image_.height() );
-
-        const size_t totalSize = static_cast<size_t>( _width * _height );
-
-        memcpy( image(), image_.image(), totalSize );
-        memcpy( transform(), image_.transform(), totalSize );
+        copy( image_ );
     }
 
     Image::Image( Image && image_ )
         : _width( 0 )
         , _height( 0 )
+        , _data( std::move( image_._data ) )
         , _singleLayer( false )
     {
-        swap( image_ );
-    }
+        // We shouldn't copy or move different types of images.
+        assert( _singleLayer == image_._singleLayer );
 
-    Image::~Image()
-    {
-        clear();
+        std::swap( _width, image_._width );
+        std::swap( _height, image_._height );
     }
 
     Image & Image::operator=( const Image & image_ )
     {
-        // We shouldn't copy different types of images.
-        assert( _singleLayer == image_._singleLayer );
+        if ( this != &image_ ) {
+            copy( image_ );
+        }
 
-        _width = image_.width();
-        _height = image_.height();
-        _data = image_._data;
         return *this;
     }
 
     Image & Image::operator=( Image && image_ )
     {
-        swap( image_ );
+        if ( this != &image_ ) {
+            // We shouldn't copy or move different types of images.
+            assert( _singleLayer == image_._singleLayer );
+
+            std::swap( _width, image_._width );
+            std::swap( _height, image_._height );
+            std::swap( _data, image_._data );
+        }
+
         return *this;
     }
 
     uint8_t * Image::image()
     {
-        return _data.data();
+        return _data.get();
     }
 
     const uint8_t * Image::image() const
     {
-        return _data.data();
+        return _data.get();
     }
 
     uint8_t * Image::transform()
     {
-        return _data.data() + _width * _height;
+        return _data.get() + _width * _height;
     }
 
     const uint8_t * Image::transform() const
     {
-        return _data.data() + _width * _height;
+        return _data.get() + _width * _height;
     }
 
     void Image::clear()
     {
-        _data.clear();
+        _data.reset();
 
         _width = 0;
         _height = 0;
@@ -480,16 +481,22 @@ namespace fheroes2
 
     void Image::resize( int32_t width_, int32_t height_ )
     {
-        if ( width_ <= 0 || height_ <= 0 || ( width_ == _width && height_ == _height ) ) // nothing to resize
+        if ( width_ == _width && height_ == _height ) {
             return;
+        }
 
-        clear();
+        if ( width_ <= 0 || height_ <= 0 ) {
+            clear();
+
+            return;
+        }
+
+        const size_t size = static_cast<size_t>( width_ * height_ );
+
+        _data.reset( new uint8_t[size * 2] );
 
         _width = width_;
         _height = height_;
-
-        const size_t totalSize = static_cast<size_t>( _width * _height );
-        _data.resize( totalSize * 2 );
     }
 
     void Image::reset()
@@ -501,15 +508,27 @@ namespace fheroes2
         }
     }
 
-    void Image::swap( Image & image )
+    void Image::copy( const Image & image )
     {
-        // We shouldn't swap different types of images.
+        // We shouldn't copy or move different types of images.
         assert( _singleLayer == image._singleLayer );
 
-        std::swap( _width, image._width );
-        std::swap( _height, image._height );
+        if ( !image._data ) {
+            clear();
 
-        std::swap( _data, image._data );
+            return;
+        }
+
+        const size_t size = static_cast<size_t>( image._width * image._height );
+
+        if ( image._width != _width || image._height != _height ) {
+            _data.reset( new uint8_t[size * 2] );
+
+            _width = image._width;
+            _height = image._height;
+        }
+
+        memcpy( _data.get(), image._data.get(), size * 2 );
     }
 
     Sprite::Sprite( int32_t width_, int32_t height_, int32_t x_, int32_t y_ )
@@ -524,30 +543,42 @@ namespace fheroes2
         , _y( y_ )
     {}
 
-    Sprite::Sprite( const Sprite & image )
-        : Image( image )
-        , _x( image._x )
-        , _y( image._y )
+    Sprite::Sprite( const Sprite & sprite )
+        : Image( sprite )
+        , _x( sprite._x )
+        , _y( sprite._y )
     {}
 
-    Sprite::Sprite( Sprite && image )
+    Sprite::Sprite( Sprite && sprite )
+        : Image( std::move( sprite ) )
+        , _x( 0 )
+        , _y( 0 )
     {
-        swap( image );
+        std::swap( _x, sprite._x );
+        std::swap( _y, sprite._y );
     }
 
-    Sprite::~Sprite() {}
-
-    Sprite & Sprite::operator=( const Sprite & image )
+    Sprite & Sprite::operator=( const Sprite & sprite )
     {
-        Image::operator=( image );
-        _x = image._x;
-        _y = image._y;
+        if ( this != &sprite ) {
+            Image::operator=( sprite );
+
+            _x = sprite._x;
+            _y = sprite._y;
+        }
+
         return *this;
     }
 
-    Sprite & Sprite::operator=( Sprite && image )
+    Sprite & Sprite::operator=( Sprite && sprite )
     {
-        swap( image );
+        if ( this != &sprite ) {
+            Image::operator=( std::move( sprite ) );
+
+            std::swap( _x, sprite._x );
+            std::swap( _y, sprite._y );
+        }
+
         return *this;
     }
 
@@ -555,13 +586,6 @@ namespace fheroes2
     {
         _x = x_;
         _y = y_;
-    }
-
-    void Sprite::swap( Sprite & image )
-    {
-        Image::swap( image );
-        std::swap( _x, image._x );
-        std::swap( _y, image._y );
     }
 
     ImageRestorer::ImageRestorer( Image & image )
@@ -1135,12 +1159,12 @@ namespace fheroes2
         return out;
     }
 
-    Image CreateContour( const Image & image, uint8_t value )
+    Sprite CreateContour( const Image & image, uint8_t value )
     {
         const int32_t width = image.width();
         const int32_t height = image.height();
 
-        Image contour( width, height );
+        Sprite contour( width, height );
         contour.reset();
         if ( width < 2 || height < 2 ) {
             return contour;

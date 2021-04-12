@@ -1161,28 +1161,19 @@ StreamBase & operator>>( StreamBase & msg, MapObjects & objs )
 
         case MP2::OBJ_RESOURCE: {
             MapResource * ptr = new MapResource();
-            if ( FORMAT_VERSION_070_RELEASE > Game::GetLoadVersion() )
-                msg >> *static_cast<MapObjectSimple *>( ptr );
-            else
-                msg >> *ptr;
+            msg >> *ptr;
             objs[index] = ptr;
         } break;
 
         case MP2::OBJ_ARTIFACT: {
             MapArtifact * ptr = new MapArtifact();
-            if ( FORMAT_VERSION_070_RELEASE > Game::GetLoadVersion() )
-                msg >> *static_cast<MapObjectSimple *>( ptr );
-            else
-                msg >> *ptr;
+            msg >> *ptr;
             objs[index] = ptr;
         } break;
 
         case MP2::OBJ_MONSTER: {
             MapMonster * ptr = new MapMonster();
-            if ( FORMAT_VERSION_070_RELEASE > Game::GetLoadVersion() )
-                msg >> *static_cast<MapObjectSimple *>( ptr );
-            else
-                msg >> *ptr;
+            msg >> *ptr;
             objs[index] = ptr;
         } break;
 
@@ -1241,7 +1232,7 @@ void EventDate::LoadFromMP2( StreamBuf st )
         st.skip( 2 );
 
         // allow computer
-        computer = st.getLE16();
+        computer = ( st.getLE16() != 0 );
 
         // day of first occurent
         first = st.getLE16();
