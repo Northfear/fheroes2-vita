@@ -198,6 +198,9 @@ Heroes::Heroes( int heroid, int rc )
         power = 2;
         knowledge = 6;
 
+        // start from lv5
+        experience = GetExperienceFromLevel( 4 );
+
         secondary_skills = Skill::SecSkills();
         secondary_skills.AddSkill( Skill::Secondary( Skill::Secondary::NAVIGATION, Skill::Level::ADVANCED ) );
         secondary_skills.AddSkill( Skill::Secondary( Skill::Secondary::WISDOM, Skill::Level::EXPERT ) );
@@ -512,9 +515,9 @@ int Heroes::GetMobilityIndexSprite( void ) const
 
 int Heroes::GetManaIndexSprite( void ) const
 {
-    // valid range (0 - 25)
-    int r = GetSpellPoints() / 5;
-    return 25 >= r ? r : 25;
+    // Add 2 to round values.
+    const int value = ( GetSpellPoints() + 2 ) / 5;
+    return value >= 25 ? 25 : value;
 }
 
 int Heroes::getStatsValue() const
@@ -775,7 +778,7 @@ int Heroes::GetLuckWithModificators( std::string * strs ) const
 }
 
 /* recrut hero */
-bool Heroes::Recruit( int cl, const Point & pt )
+bool Heroes::Recruit( int cl, const fheroes2::Point & pt )
 {
     if ( GetColor() != Color::NONE ) {
         DEBUG_LOG( DBG_GAME, DBG_WARN, "not freeman" );
@@ -1677,12 +1680,12 @@ void Heroes::ActionNewPosition( void )
     ResetModes( VISIONS );
 }
 
-void Heroes::SetCenterPatrol( const Point & pt )
+void Heroes::SetCenterPatrol( const fheroes2::Point & pt )
 {
     patrol_center = pt;
 }
 
-const Point & Heroes::GetCenterPatrol( void ) const
+const fheroes2::Point & Heroes::GetCenterPatrol( void ) const
 {
     return patrol_center;
 }
@@ -1695,12 +1698,6 @@ int Heroes::GetSquarePatrol( void ) const
 void Heroes::MovePointsScaleFixed( void )
 {
     move_point_scale = move_point * 1000 / GetMaxMovePoints();
-}
-
-void Heroes::RecalculateMovePoints( void )
-{
-    if ( 0 <= move_point_scale )
-        move_point = GetMaxMovePoints() * move_point_scale / 1000;
 }
 
 // Move hero to a new position. This function applies no action and no penalty
@@ -1922,7 +1919,7 @@ Heroes * VecHeroes::Get( int hid ) const
     return 0 <= hid && hid < Heroes::UNKNOWN ? vec[hid] : NULL;
 }
 
-Heroes * VecHeroes::Get( const Point & center ) const
+Heroes * VecHeroes::Get( const fheroes2::Point & center ) const
 {
     const_iterator it = begin();
     for ( ; it != end(); ++it )
@@ -1942,8 +1939,8 @@ Heroes * AllHeroes::GetGuard( const Castle & castle ) const
 {
     const_iterator it = Settings::Get().ExtCastleAllowGuardians() ? std::find_if( begin(), end(),
                                                                                   [&castle]( const Heroes * hero ) {
-                                                                                      const Point & cpt = castle.GetCenter();
-                                                                                      const Point & hpt = hero->GetCenter();
+                                                                                      const fheroes2::Point & cpt = castle.GetCenter();
+                                                                                      const fheroes2::Point & hpt = hero->GetCenter();
                                                                                       return cpt.x == hpt.x && cpt.y == hpt.y + 1 && hero->Modes( Heroes::GUARDIAN );
                                                                                   } )
                                                                   : end();
@@ -2017,6 +2014,12 @@ Heroes * AllHeroes::GetFreeman( int race ) const
     }
 
     return at( Rand::Get( freeman_heroes ) );
+}
+
+Heroes * AllHeroes::GetFreemanSpecial( int heroID ) const
+{
+    assert( at( heroID ) && at( heroID )->isFreeman() );
+    return at( heroID );
 }
 
 void AllHeroes::Scoute( int colors ) const
@@ -2101,11 +2104,19 @@ StreamBase & operator<<( StreamBase & msg, const Heroes & hero )
     const HeroBase & base = hero;
     const ColorBase & col = hero;
 
-    return msg << base <<
-           // heroes
-           hero.name << col << hero.killer_color << hero.experience << hero.move_point_scale << hero.secondary_skills << hero.army << hero.hid << hero.portrait
-               << hero.race << hero.save_maps_object << hero.path << hero.direction << hero.sprite_index << hero.patrol_center << hero.patrol_square << hero.visit_object
-               << hero._lastGroundRegion;
+    msg << base;
+
+    // heroes
+    msg << hero.name << col << hero.killer_color << hero.experience << hero.move_point_scale << hero.secondary_skills << hero.army << hero.hid << hero.portrait
+        << hero.race << hero.save_maps_object << hero.path << hero.direction << hero.sprite_index;
+
+    // TODO: before 0.9.4 Point was int16_t type
+    const int16_t patrolX = static_cast<int16_t>( hero.patrol_center.x );
+    const int16_t patrolY = static_cast<int16_t>( hero.patrol_center.y );
+
+    msg << patrolX << patrolY << hero.patrol_square << hero.visit_object << hero._lastGroundRegion;
+
+    return msg;
 }
 
 StreamBase & operator>>( StreamBase & msg, Heroes & hero )
@@ -2114,7 +2125,16 @@ StreamBase & operator>>( StreamBase & msg, Heroes & hero )
     ColorBase & col = hero;
 
     msg >> base >> hero.name >> col >> hero.killer_color >> hero.experience >> hero.move_point_scale >> hero.secondary_skills >> hero.army >> hero.hid >> hero.portrait
-        >> hero.race >> hero.save_maps_object >> hero.path >> hero.direction >> hero.sprite_index >> hero.patrol_center >> hero.patrol_square >> hero.visit_object;
+        >> hero.race >> hero.save_maps_object >> hero.path >> hero.direction >> hero.sprite_index;
+
+    // TODO: before 0.9.4 Point was int16_t type
+    int16_t patrolX = 0;
+    int16_t patrolY = 0;
+
+    msg >> patrolX >> patrolY;
+    hero.patrol_center = fheroes2::Point( patrolX, patrolY );
+
+    msg >> hero.patrol_square >> hero.visit_object;
 
     if ( Game::GetLoadVersion() >= FORMAT_VERSION_091_RELEASE ) {
         msg >> hero._lastGroundRegion;

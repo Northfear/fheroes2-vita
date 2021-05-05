@@ -78,21 +78,21 @@ Battle::Board::Board()
         push_back( Cell( ii ) );
 }
 
-void Battle::Board::SetArea( const Rect & area )
+void Battle::Board::SetArea( const fheroes2::Rect & area )
 {
     for ( iterator it = begin(); it != end(); ++it )
         ( *it ).SetArea( area );
 }
 
-Rect Battle::Board::GetArea( void ) const
+fheroes2::Rect Battle::Board::GetArea( void ) const
 {
-    Rects rects;
+    std::vector<fheroes2::Rect> rects;
     rects.reserve( size() );
 
     for ( const_iterator it = begin(); it != end(); ++it )
         rects.push_back( ( *it ).GetPos() );
 
-    return rects.GetRect();
+    return GetBoundaryRect( rects );
 }
 
 void Battle::Board::Reset( void )
@@ -107,7 +107,7 @@ void Battle::Board::Reset( void )
     }
 }
 
-void Battle::Board::SetPositionQuality( const Unit & b )
+void Battle::Board::SetPositionQuality( const Unit & b ) const
 {
     Arena * arena = GetArena();
     Units enemies( arena->GetForce( b.GetCurrentColor(), true ), true );
@@ -138,7 +138,7 @@ void Battle::Board::SetPositionQuality( const Unit & b )
     }
 }
 
-void Battle::Board::SetEnemyQuality( const Unit & unit )
+void Battle::Board::SetEnemyQuality( const Unit & unit ) const
 {
     Arena * arena = GetArena();
     Units enemies( arena->GetForce( unit.GetColor(), true ), true );
@@ -487,34 +487,6 @@ Battle::Indexes Battle::Board::GetAStarPath( const Unit & unit, const Position &
     return result;
 }
 
-Battle::Indexes Battle::Board::GetPassableQualityPositions( const Unit & b )
-{
-    Indexes result;
-    result.reserve( 30 );
-
-    // make sure we check current position first to avoid unnecessary move
-    const int headIndex = b.GetHeadIndex();
-    if ( GetCell( headIndex )->GetQuality() ) {
-        result.push_back( headIndex );
-    }
-
-    for ( const_iterator it = begin(); it != end(); ++it )
-        if ( ( *it ).isPassable3( b, false ) && ( *it ).GetQuality() )
-            result.push_back( ( *it ).GetIndex() );
-
-    if ( IS_DEBUG( DBG_BATTLE, DBG_TRACE ) ) {
-        std::stringstream ss;
-        if ( result.empty() )
-            ss << "empty";
-        else
-            for ( Indexes::const_iterator it = result.begin(); it != result.end(); ++it )
-                ss << *it << ", ";
-        DEBUG_LOG( DBG_BATTLE, DBG_TRACE, ss.str() );
-    }
-
-    return result;
-}
-
 std::vector<Battle::Unit *> Battle::Board::GetNearestTroops( const Unit * startUnit, const std::vector<Battle::Unit *> & blackList )
 {
     std::vector<std::pair<Battle::Unit *, uint32_t> > foundUnits;
@@ -714,7 +686,7 @@ s32 Battle::Board::GetIndexDirection( s32 index, int dir )
     return -1;
 }
 
-s32 Battle::Board::GetIndexAbsPosition( const Point & pt ) const
+s32 Battle::Board::GetIndexAbsPosition( const fheroes2::Point & pt ) const
 {
     const_iterator it = begin();
 
@@ -905,9 +877,6 @@ void Battle::Board::SetCovrObjects( int icn )
     case ICN::COVR0007:
     case ICN::COVR0013:
     case ICN::COVR0019:
-        at( 15 ).SetObject( 0x40 );
-        at( 16 ).SetObject( 0x40 );
-        at( 17 ).SetObject( 0x40 );
         at( 25 ).SetObject( 0x40 );
         at( 26 ).SetObject( 0x40 );
         at( 27 ).SetObject( 0x40 );
@@ -928,7 +897,6 @@ void Battle::Board::SetCovrObjects( int icn )
         break;
 
     case ICN::COVR0003:
-    case ICN::COVR0009:
     case ICN::COVR0015:
     case ICN::COVR0021:
         at( 35 ).SetObject( 0x40 );
@@ -939,6 +907,16 @@ void Battle::Board::SetCovrObjects( int icn )
         at( 49 ).SetObject( 0x40 );
         at( 50 ).SetObject( 0x40 );
         at( 51 ).SetObject( 0x40 );
+        break;
+
+    case ICN::COVR0009:
+        at( 35 ).SetObject( 0x40 );
+        at( 40 ).SetObject( 0x40 );
+        at( 46 ).SetObject( 0x40 );
+        at( 47 ).SetObject( 0x40 );
+        at( 48 ).SetObject( 0x40 );
+        at( 49 ).SetObject( 0x40 );
+        at( 50 ).SetObject( 0x40 );
         break;
 
     case ICN::COVR0004:

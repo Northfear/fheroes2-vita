@@ -401,7 +401,7 @@ bool Heroes::isInVisibleMapArea() const
     return Interface::Basic::Get().GetGameArea().GetVisibleTileROI() & GetCenter();
 }
 
-void Heroes::RedrawShadow( fheroes2::Image & dst, int32_t dx, int32_t dy, const Rect & visibleTileROI, const Interface::GameArea & gamearea ) const
+void Heroes::RedrawShadow( fheroes2::Image & dst, int32_t dx, int32_t dy, const fheroes2::Rect & visibleTileROI, const Interface::GameArea & area ) const
 {
     if ( !( visibleTileROI & GetCenter() ) )
         return;
@@ -415,8 +415,8 @@ void Heroes::RedrawShadow( fheroes2::Image & dst, int32_t dx, int32_t dy, const 
     const fheroes2::Sprite & sprite3 = SpriteShad( *this, sprite_index );
     const fheroes2::Sprite & sprite4 = SpriteFroth( *this, sprite_index );
 
-    Point dst_pt3( dx + sprite3.x(), dy + sprite3.y() + TILEWIDTH );
-    Point dst_pt4( dx + ( reflect ? TILEWIDTH - sprite4.x() - sprite4.width() : sprite4.x() ), dy + sprite4.y() + TILEWIDTH );
+    fheroes2::Point dst_pt3( dx + sprite3.x(), dy + sprite3.y() + TILEWIDTH );
+    fheroes2::Point dst_pt4( dx + ( reflect ? TILEWIDTH - sprite4.x() - sprite4.width() : sprite4.x() ), dy + sprite4.y() + TILEWIDTH );
 
     // apply offset
     if ( sprite_index < 45 ) {
@@ -482,21 +482,20 @@ void Heroes::RedrawShadow( fheroes2::Image & dst, int32_t dx, int32_t dy, const 
         }
 
         if ( ocean ) {
-            const Rect blitArea = gamearea.RectFixed( dst_pt4, sprite4.width(), sprite4.height() );
-            fheroes2::AlphaBlit( sprite4, blitArea.x, blitArea.y, dst, dst_pt4.x, dst_pt4.y, blitArea.w, blitArea.h, _alphaValue, reflect );
+            const fheroes2::Rect blitArea = area.RectFixed( dst_pt4, sprite4.width(), sprite4.height() );
+            fheroes2::AlphaBlit( sprite4, blitArea.x, blitArea.y, dst, dst_pt4.x, dst_pt4.y, blitArea.width, blitArea.height, _alphaValue, reflect );
         }
     }
 
-    const Rect blitArea = gamearea.RectFixed( dst_pt3, sprite3.width(), sprite3.height() );
-    fheroes2::AlphaBlit( sprite3, blitArea.x, blitArea.y, dst, dst_pt3.x, dst_pt3.y, blitArea.w, blitArea.h, _alphaValue );
+    const fheroes2::Rect blitArea = area.RectFixed( dst_pt3, sprite3.width(), sprite3.height() );
+    fheroes2::AlphaBlit( sprite3, blitArea.x, blitArea.y, dst, dst_pt3.x, dst_pt3.y, blitArea.width, blitArea.height, _alphaValue );
 }
 
-void Heroes::Redraw( fheroes2::Image & dst, int32_t dx, int32_t dy, const Rect & visibleTileROI, const Interface::GameArea & gamearea ) const
+void Heroes::Redraw( fheroes2::Image & dst, int32_t dx, int32_t dy, const fheroes2::Rect & visibleTileROI, const Interface::GameArea & area ) const
 {
     if ( !( visibleTileROI & GetCenter() ) )
         return;
 
-    const int32_t centerIndex = GetIndex();
     const bool reflect = ReflectSprite( direction );
 
     int flagFrameID = sprite_index;
@@ -512,9 +511,9 @@ void Heroes::Redraw( fheroes2::Image & dst, int32_t dx, int32_t dy, const Rect &
     const fheroes2::Sprite & sprite1 = SpriteHero( *this, sprite_index, false );
     const fheroes2::Sprite & sprite2 = SpriteFlag( *this, flagFrameID, false, flagOffset );
 
-    Point dst_pt1( dx + ( reflect ? TILEWIDTH - sprite1.x() - sprite1.width() : sprite1.x() ), dy + sprite1.y() + TILEWIDTH );
-    Point dst_pt2( dx + ( reflect ? TILEWIDTH - sprite2.x() - flagOffset.x - sprite2.width() : sprite2.x() + flagOffset.x ),
-                   dy + sprite2.y() + flagOffset.y + TILEWIDTH );
+    fheroes2::Point dst_pt1( dx + ( reflect ? TILEWIDTH - sprite1.x() - sprite1.width() : sprite1.x() ), dy + sprite1.y() + TILEWIDTH );
+    fheroes2::Point dst_pt2( dx + ( reflect ? TILEWIDTH - sprite2.x() - flagOffset.x - sprite2.width() : sprite2.x() + flagOffset.x ),
+                             dy + sprite2.y() + flagOffset.y + TILEWIDTH );
 
     // apply offset
     if ( sprite_index < 45 ) {
@@ -567,51 +566,146 @@ void Heroes::Redraw( fheroes2::Image & dst, int32_t dx, int32_t dy, const Rect &
     }
 
     // redraw sprites hero and flag
-    const Rect blitAreaHero = gamearea.RectFixed( dst_pt1, sprite1.width(), sprite1.height() );
-    fheroes2::AlphaBlit( sprite1, blitAreaHero.x, blitAreaHero.y, dst, dst_pt1.x, dst_pt1.y, blitAreaHero.w, blitAreaHero.h, _alphaValue, reflect );
-    const Rect blitAreaFlag = gamearea.RectFixed( dst_pt2, sprite2.width(), sprite2.height() );
-    fheroes2::AlphaBlit( sprite2, blitAreaFlag.x, blitAreaFlag.y, dst, dst_pt2.x, dst_pt2.y, blitAreaFlag.w, blitAreaFlag.h, _alphaValue, reflect );
+    const fheroes2::Rect blitAreaHero = area.RectFixed( dst_pt1, sprite1.width(), sprite1.height() );
+    fheroes2::AlphaBlit( sprite1, blitAreaHero.x, blitAreaHero.y, dst, dst_pt1.x, dst_pt1.y, blitAreaHero.width, blitAreaHero.height, _alphaValue, reflect );
+    const fheroes2::Rect blitAreaFlag = area.RectFixed( dst_pt2, sprite2.width(), sprite2.height() );
+    fheroes2::AlphaBlit( sprite2, blitAreaFlag.x, blitAreaFlag.y, dst, dst_pt2.x, dst_pt2.y, blitAreaFlag.width, blitAreaFlag.height, _alphaValue, reflect );
+}
 
-    // redraw dependences tiles
+void Heroes::SetRedrawIndexes()
+{
+    const int32_t centerIndex = GetIndex();
+    _redrawIndex.topOnBottom = -1;
+    _redrawIndex.objectsOnBottom = -1;
+    if ( Maps::isValidDirection( centerIndex, Direction::BOTTOM ) ) {
+        _redrawIndex.topOnBottom = Maps::GetDirectionIndex( centerIndex, Direction::BOTTOM );
+        const Maps::Tiles & tileBottom = world.GetTiles( _redrawIndex.topOnBottom );
+        if ( !Interface::SkipRedrawTileBottom4Hero( tileBottom.GetObjectTileset(), tileBottom.GetObjectSpriteIndex(), tileBottom.GetPassable() ) ) {
+            _redrawIndex.objectsOnBottom = _redrawIndex.topOnBottom;
+        }
+    }
+
+    _redrawIndex.topOnDirectionBottom = -1;
+    _redrawIndex.objectsOnDirectionBottom = -1;
+    if ( 45 > GetSpriteIndex() && Direction::BOTTOM != direction && Direction::TOP != direction && Direction::BOTTOM_LEFT != direction
+         && Direction::BOTTOM_RIGHT != direction && Maps::isValidDirection( centerIndex, direction ) ) {
+        const int32_t directionIndex = Maps::GetDirectionIndex( centerIndex, direction );
+        if ( Maps::isValidDirection( directionIndex, Direction::BOTTOM ) ) {
+            _redrawIndex.topOnDirectionBottom = Maps::GetDirectionIndex( directionIndex, Direction::BOTTOM );
+            const Maps::Tiles & tileDirectionBottom = world.GetTiles( _redrawIndex.topOnDirectionBottom );
+            if ( !Interface::SkipRedrawTileBottom4Hero( tileDirectionBottom.GetObjectTileset(), tileDirectionBottom.GetObjectSpriteIndex(),
+                                                        tileDirectionBottom.GetPassable() ) ) {
+                _redrawIndex.objectsOnDirectionBottom = _redrawIndex.topOnDirectionBottom;
+            }
+        }
+    }
+    _redrawIndex.topOnDirection = ( Direction::BOTTOM != direction && Direction::TOP != direction && Maps::isValidDirection( centerIndex, direction ) )
+                                      ? Maps::GetDirectionIndex( centerIndex, direction )
+                                      : -1;
+}
+
+void Heroes::UpdateRedrawBottom( const Maps::Tiles & tile )
+{
+    const Heroes * hero = tile.GetHeroes();
+    if ( hero == nullptr ) {
+        return;
+    }
+    if ( _redrawIndex.objectsOnDirectionBottom == tile.GetIndex() ) {
+        _redrawIndex.objectsOnDirectionBottom = -1;
+    }
+    if ( _redrawIndex.objectsOnBottom == tile.GetIndex() ) {
+        _redrawIndex.objectsOnBottom = -1;
+    }
+    const Heroes::RedrawIndex & redrawIndex = hero->GetRedrawIndex();
+    if ( _redrawIndex.objectsOnBottom == redrawIndex.objectsOnDirectionBottom ) {
+        _redrawIndex.objectsOnBottom = -1;
+    }
+}
+
+void Heroes::UpdateRedrawTop( const Maps::Tiles & tile )
+{
+    const int object = tile.GetObject();
+    if ( MP2::OBJ_BOAT != object && MP2::OBJ_HEROES != object ) {
+        return;
+    }
+    if ( _redrawIndex.topOnBottom == tile.GetIndex() ) {
+        _redrawIndex.topOnBottom = -1;
+    }
+    else if ( _redrawIndex.topOnDirection == tile.GetIndex() ) {
+        _redrawIndex.topOnDirection = -1;
+    }
+    else if ( _redrawIndex.topOnDirectionBottom == tile.GetIndex() ) {
+        _redrawIndex.topOnDirectionBottom = -1;
+    }
+    const Heroes * hero = tile.GetHeroes();
+    if ( hero == nullptr ) {
+        return;
+    }
+    const Heroes::RedrawIndex & redrawIndex = hero->GetRedrawIndex();
+    if ( _redrawIndex.topOnBottom == redrawIndex.topOnDirection || _redrawIndex.topOnBottom == redrawIndex.topOnDirectionBottom ) {
+        _redrawIndex.topOnBottom = -1;
+    }
+    if ( _redrawIndex.topOnDirection == redrawIndex.topOnBottom || _redrawIndex.topOnDirection == redrawIndex.topOnDirectionBottom ) {
+        _redrawIndex.topOnDirection = -1;
+    }
+}
+
+void Heroes::RedrawTop( fheroes2::Image & dst, const fheroes2::Rect & visibleTileROI, const Interface::GameArea & area ) const
+{
     const Maps::Tiles & tile = world.GetTiles( center.x, center.y );
     const bool skipGround = MP2::isActionObject( tile.GetObject( false ), isShipMaster() );
 
-    tile.RedrawTop( dst, visibleTileROI, gamearea );
+    tile.RedrawTop( dst, visibleTileROI, area );
+
+    const int32_t centerIndex = GetIndex();
 
     if ( Maps::isValidDirection( centerIndex, Direction::TOP ) )
-        world.GetTiles( Maps::GetDirectionIndex( centerIndex, Direction::TOP ) ).RedrawTop4Hero( dst, visibleTileROI, skipGround, gamearea );
-
-    if ( Maps::isValidDirection( centerIndex, Direction::BOTTOM ) ) {
-        const Maps::Tiles & tile_bottom = world.GetTiles( Maps::GetDirectionIndex( centerIndex, Direction::BOTTOM ) );
-        tile_bottom.RedrawBottom4Hero( dst, visibleTileROI, gamearea );
-        tile_bottom.RedrawTop( dst, visibleTileROI, gamearea );
-    }
+        world.GetTiles( Maps::GetDirectionIndex( centerIndex, Direction::TOP ) ).RedrawTop4Hero( dst, visibleTileROI, skipGround, area );
 
     if ( 45 > GetSpriteIndex() ) {
         if ( Direction::BOTTOM != direction && Direction::TOP != direction && Maps::isValidDirection( centerIndex, direction ) ) {
-            if ( Direction::BOTTOM_LEFT != direction && Direction::BOTTOM_RIGHT != direction
-                 && Maps::isValidDirection( Maps::GetDirectionIndex( centerIndex, direction ), Direction::BOTTOM ) ) {
-                const Maps::Tiles & tile_dir_bottom = world.GetTiles( Maps::GetDirectionIndex( Maps::GetDirectionIndex( centerIndex, direction ), Direction::BOTTOM ) );
-                tile_dir_bottom.RedrawBottom4Hero( dst, visibleTileROI, gamearea );
-                tile_dir_bottom.RedrawTop( dst, visibleTileROI, gamearea );
-            }
             if ( Direction::TOP_LEFT != direction && Direction::TOP_RIGHT != direction
                  && Maps::isValidDirection( Maps::GetDirectionIndex( centerIndex, direction ), Direction::TOP ) ) {
-                const Maps::Tiles & tile_dir_top = world.GetTiles( Maps::GetDirectionIndex( Maps::GetDirectionIndex( centerIndex, direction ), Direction::TOP ) );
-                tile_dir_top.RedrawTop4Hero( dst, visibleTileROI, skipGround, gamearea );
+                const Maps::Tiles & tileDirectionTop = world.GetTiles( Maps::GetDirectionIndex( Maps::GetDirectionIndex( centerIndex, direction ), Direction::TOP ) );
+                tileDirectionTop.RedrawTop4Hero( dst, visibleTileROI, skipGround, area );
             }
-        }
-
-        if ( Maps::isValidDirection( centerIndex, Direction::BOTTOM ) ) {
-            const Maps::Tiles & tile_bottom = world.GetTiles( Maps::GetDirectionIndex( centerIndex, Direction::BOTTOM ) );
-
-            if ( tile_bottom.GetObject() == MP2::OBJ_BOAT )
-                tile_bottom.RedrawObjects( dst, false, gamearea );
         }
     }
 
-    if ( Direction::BOTTOM != direction && Direction::TOP != direction && Maps::isValidDirection( centerIndex, direction ) )
-        world.GetTiles( Maps::GetDirectionIndex( centerIndex, direction ) ).RedrawTop( dst, visibleTileROI, gamearea );
+    if ( _redrawIndex.topOnBottom != -1 ) {
+        const Maps::Tiles & tileBottom = world.GetTiles( _redrawIndex.topOnBottom );
+        tileBottom.RedrawTop( dst, visibleTileROI, area );
+        tileBottom.RedrawTopFromBottom( dst, area );
+    }
+    if ( _redrawIndex.topOnDirection != -1 ) {
+        const Maps::Tiles & tileDirection = world.GetTiles( _redrawIndex.topOnDirection );
+        tileDirection.RedrawTop( dst, visibleTileROI, area );
+        tileDirection.RedrawTopFromBottom( dst, area );
+    }
+    if ( _redrawIndex.topOnDirectionBottom != -1 ) {
+        const Maps::Tiles & tileDirectionBottom = world.GetTiles( _redrawIndex.topOnDirectionBottom );
+        tileDirectionBottom.RedrawTop( dst, visibleTileROI, area );
+        tileDirectionBottom.RedrawTopFromBottom( dst, area );
+    }
+}
+
+void Heroes::RedrawBottom( fheroes2::Image & dst, const fheroes2::Rect & visibleTileROI, const Interface::GameArea & area, bool isPuzzleDraw ) const
+{
+    if ( _redrawIndex.objectsOnDirectionBottom != -1 ) {
+        const Maps::Tiles & tile = world.GetTiles( _redrawIndex.objectsOnDirectionBottom );
+        tile.RedrawBottom4Hero( dst, visibleTileROI, area );
+        tile.RedrawObjects( dst, isPuzzleDraw, area );
+    }
+    if ( _redrawIndex.objectsOnBottom != -1 ) {
+        const Maps::Tiles & tile = world.GetTiles( _redrawIndex.objectsOnBottom );
+        tile.RedrawBottom4Hero( dst, visibleTileROI, area );
+        tile.RedrawObjects( dst, isPuzzleDraw, area );
+    }
+}
+
+const Heroes::RedrawIndex & Heroes::GetRedrawIndex() const
+{
+    return _redrawIndex;
 }
 
 void Heroes::MoveStep( Heroes & hero, s32 indexTo, bool newpos )
@@ -645,7 +739,7 @@ bool Heroes::MoveStep( bool fast )
 {
     const int32_t indexTo = Maps::GetDirectionIndex( GetIndex(), path.GetFrontDirection() );
     const int32_t indexDest = path.GetDestinationIndex();
-    const Point & mp = GetCenter();
+    const fheroes2::Point & mp = GetCenter();
 
     if ( fast ) {
         if ( indexTo == indexDest && isNeedStayFrontObject( *this, world.GetTiles( indexTo ) ) )
@@ -843,7 +937,7 @@ void Heroes::AngleStep( int to_direct )
     }
 }
 
-void Heroes::FadeOut( const Point & offset ) const
+void Heroes::FadeOut( const fheroes2::Point & offset ) const
 {
     if ( !isInVisibleMapArea() )
         return;
@@ -879,7 +973,7 @@ void Heroes::FadeOut( const Point & offset ) const
     _alphaValue = 255;
 }
 
-void Heroes::FadeIn( const Point & offset ) const
+void Heroes::FadeIn( const fheroes2::Point & offset ) const
 {
     if ( !isInVisibleMapArea() )
         return;
@@ -953,40 +1047,40 @@ bool Heroes::Move( bool fast )
     return false;
 }
 
-Point Heroes::MovementDirection() const
+fheroes2::Point Heroes::MovementDirection() const
 {
     const int32_t from = GetIndex();
     const int32_t to = Maps::GetDirectionIndex( from, path.GetFrontDirection() );
     if ( from == -1 || to == -1 )
-        return Point();
+        return fheroes2::Point();
 
     if ( direction == Direction::TOP ) {
         if ( sprite_index > 1 && sprite_index < 9 ) {
-            return Point( 0, -1 );
+            return fheroes2::Point( 0, -1 );
         }
     }
     else if ( direction == Direction::TOP_RIGHT || direction == Direction::TOP_LEFT ) {
         if ( sprite_index > 9 + 1 && sprite_index < 18 ) {
-            return Point( direction == Direction::TOP_RIGHT ? 1 : -1, -1 );
+            return fheroes2::Point( direction == Direction::TOP_RIGHT ? 1 : -1, -1 );
         }
     }
     else if ( direction == Direction::RIGHT || direction == Direction::LEFT ) {
         if ( sprite_index > 18 + 1 && sprite_index < 27 ) {
-            return Point( direction == Direction::RIGHT ? 1 : -1, 0 );
+            return fheroes2::Point( direction == Direction::RIGHT ? 1 : -1, 0 );
         }
     }
     else if ( direction == Direction::BOTTOM_RIGHT || direction == Direction::BOTTOM_LEFT ) {
         if ( sprite_index > 27 + 1 && sprite_index < 36 ) {
-            return Point( direction == Direction::BOTTOM_RIGHT ? 1 : -1, 1 );
+            return fheroes2::Point( direction == Direction::BOTTOM_RIGHT ? 1 : -1, 1 );
         }
     }
     else if ( direction == Direction::BOTTOM ) {
         if ( sprite_index > 36 + 1 && sprite_index < 45 ) {
-            return Point( 0, 1 );
+            return fheroes2::Point( 0, 1 );
         }
     }
 
-    return Point();
+    return fheroes2::Point();
 }
 
 void Heroes::SetValidDirectionSprite()

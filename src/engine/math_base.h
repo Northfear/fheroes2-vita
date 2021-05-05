@@ -84,6 +84,11 @@ namespace fheroes2
             return PointBase2D( value * x, value * y );
         }
 
+        bool operator<( const PointBase2D & point ) const
+        {
+            return x == point.x ? y < point.y : x < point.x;
+        }
+
         _Type x;
         _Type y;
     };
@@ -242,6 +247,11 @@ namespace fheroes2
             }
 
             return output;
+        }
+
+        PointBase2D<_TypePoint> getPosition() const
+        {
+            return PointBase2D<_TypePoint>( x, y );
         }
 
         _TypePoint x;

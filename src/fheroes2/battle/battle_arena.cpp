@@ -336,12 +336,8 @@ void Battle::Arena::TurnTroop( Unit * troop, const Units & orderHistory )
 {
     DEBUG_LOG( DBG_BATTLE, DBG_TRACE, troop->String( true ) );
 
-    const bool isImmovable = troop->Modes( SP_BLIND | IS_PARALYZE_MAGIC );
-
-    // morale check right before the turn
-    if ( !isImmovable ) {
-        if ( troop->isAffectedByMorale() )
-            troop->SetRandomMorale();
+    if ( troop->isAffectedByMorale() ) {
+        troop->SetRandomMorale();
     }
 
     end_turn = false;
@@ -352,7 +348,8 @@ void Battle::Arena::TurnTroop( Unit * troop, const Units & orderHistory )
         if ( !troop->isValid() ) { // looks like the unit died
             end_turn = true;
         }
-        else if ( troop->Modes( MORALE_BAD ) ) { // bad morale
+        else if ( troop->Modes( MORALE_BAD ) && !troop->Modes( TR_SKIPMOVE ) ) {
+            // bad morale, happens only if the unit wasn't waiting for a turn
             actions.push_back( Command( MSG_BATTLE_MORALE, troop->GetUID(), false ) );
             end_turn = true;
         }
@@ -360,7 +357,7 @@ void Battle::Arena::TurnTroop( Unit * troop, const Units & orderHistory )
             // re-calculate possible paths in case unit moved or it's a new turn
             _pathfinder.calculate( *troop );
 
-            // turn opponents
+            // get task from player
             if ( troop->isControlRemote() )
                 RemoteTurn( *troop, actions );
             else {
@@ -392,10 +389,12 @@ void Battle::Arena::TurnTroop( Unit * troop, const Units & orderHistory )
                 break;
             }
 
+            const bool isImmovable = troop->Modes( SP_BLIND | IS_PARALYZE_MAGIC );
+            const bool troopSkipsMove = troopHasAlreadySkippedMove ? troop->Modes( TR_HARDSKIP ) : troop->Modes( TR_SKIPMOVE );
+
             // good morale
-            if ( !end_turn && troop->isValid() && !troop->Modes( TR_SKIPMOVE ) && troop->Modes( TR_MOVED ) && troop->Modes( MORALE_GOOD ) && !isImmovable ) {
-                actions.push_back( Command( MSG_BATTLE_MORALE, troop->GetUID(), true ) );
-                end_turn = false;
+            if ( !end_turn && troop->isValid() && troop->Modes( TR_MOVED ) && troop->Modes( MORALE_GOOD ) && !isImmovable && !troopSkipsMove ) {
+                actions.emplace_back( MSG_BATTLE_MORALE, troop->GetUID(), true );
             }
         }
 
@@ -424,8 +423,13 @@ void Battle::Arena::Turns( void )
 
     const Settings & conf = Settings::Get();
 
-    if ( interface && conf.Music() && !Music::isPlaying() )
-        AGG::PlayMusic( MUS::GetBattleRandom(), true, true );
+    if ( interface ) {
+        interface->RedrawActionNewTurn();
+
+        if ( conf.Music() && !Music::isPlaying() ) {
+            AGG::PlayMusic( MUS::GetBattleRandom(), true, true );
+        }
+    }
 
     army1->NewTurn();
     army2->NewTurn();
@@ -517,7 +521,7 @@ void Battle::Arena::Turns( void )
     }
 
     // can skip move ?
-    if ( Settings::Get().ExtBattleSoftWait() ) {
+    if ( conf.ExtBattleSoftWait() ) {
         Unit * troop = nullptr;
 
         while ( BattleValid() && ( troop = Force::GetCurrentUnit( *army1, *army2, false, preferredColor ) ) != nullptr ) {
@@ -601,7 +605,7 @@ void Battle::Arena::CatapultAction( void )
 {
     if ( catapult ) {
         u32 shots = catapult->GetShots();
-        std::vector<u32> values( CAT_MISS + 1, 0 );
+        std::vector<u32> values( CAT_CENTRAL_TOWER + 1, 0 );
 
         values[CAT_WALL1] = GetCastleTargetValue( CAT_WALL1 );
         values[CAT_WALL2] = GetCastleTargetValue( CAT_WALL2 );
@@ -609,24 +613,33 @@ void Battle::Arena::CatapultAction( void )
         values[CAT_WALL4] = GetCastleTargetValue( CAT_WALL4 );
         values[CAT_TOWER1] = GetCastleTargetValue( CAT_TOWER1 );
         values[CAT_TOWER2] = GetCastleTargetValue( CAT_TOWER2 );
-        values[CAT_CENTRAL_TOWER] = GetCastleTargetValue( CAT_CENTRAL_TOWER );
         values[CAT_BRIDGE] = GetCastleTargetValue( CAT_BRIDGE );
+        values[CAT_CENTRAL_TOWER] = GetCastleTargetValue( CAT_CENTRAL_TOWER );
 
         Command cmd( MSG_BATTLE_CATAPULT );
 
+        cmd << shots;
+
         while ( shots-- ) {
-            int target = catapult->GetTarget( values );
-            u32 damage = std::min( catapult->GetDamage(), values[target] );
-            cmd << damage << target;
-            values[target] -= damage;
+            const int target = catapult->GetTarget( values );
+            const uint32_t damage = std::min( catapult->GetDamage(), values[target] );
+            const bool hit = catapult->IsNextShotHit();
+
+            cmd << target << damage << ( hit ? 1 : 0 );
+
+            if ( hit ) {
+                values[target] -= damage;
+            }
         }
 
-        cmd << catapult->GetShots();
+        // preserve the order of shots - command arguments will be extracted in reverse order
+        std::reverse( cmd.begin(), cmd.end() );
+
         ApplyAction( cmd );
     }
 }
 
-Battle::Indexes Battle::Arena::GetPath( const Unit & b, const Position & dst )
+Battle::Indexes Battle::Arena::GetPath( const Unit & b, const Position & dst ) const
 {
     Indexes result = board.GetAStarPath( b, dst );
 
@@ -645,7 +658,7 @@ Battle::Indexes Battle::Arena::CalculateTwoMoveOverlap( int32_t indexTo, uint32_
     return _pathfinder.findTwoMovesOverlap( indexTo, movementRange );
 }
 
-std::pair<int, uint32_t> Battle::Arena::CalculateMoveToUnit( const Unit & target )
+std::pair<int, uint32_t> Battle::Arena::CalculateMoveToUnit( const Unit & target ) const
 {
     std::pair<int, uint32_t> result = { -1, MAXU16 };
 
@@ -808,15 +821,15 @@ s32 Battle::Arena::GetFreePositionNearHero( int color ) const
 
 bool Battle::Arena::CanSurrenderOpponent( int color ) const
 {
-    const HeroBase * hero1 = GetCommander( color, false ); // enemy
-    const HeroBase * hero2 = GetCommander( color, true );
-    return hero1 && hero1->isHeroes() && hero2 && world.GetKingdom( hero2->GetColor() ).GetCastles().size();
+    const HeroBase * hero1 = GetCommander( color, true ); // enemy
+    const HeroBase * hero2 = GetCommander( color, false );
+    return hero1 && hero1->isHeroes() && hero2 && hero2->isHeroes() && !world.GetKingdom( hero2->GetColor() ).GetCastles().empty();
 }
 
 bool Battle::Arena::CanRetreatOpponent( int color ) const
 {
-    const HeroBase * hero = army1->GetColor() == color ? army1->GetCommander() : army2->GetCommander();
-    return hero && hero->isHeroes() && NULL == hero->inCastle();
+    const HeroBase * hero = GetCommander( color );
+    return hero && hero->isHeroes() && ( color == army1->GetColor() || hero->inCastle() == nullptr );
 }
 
 bool Battle::Arena::isSpellcastDisabled() const
@@ -999,9 +1012,14 @@ void Battle::Arena::SetCastleTargetValue( int target, u32 value )
 
     case CAT_BRIDGE:
         if ( bridge->isValid() ) {
-            if ( interface )
-                interface->RedrawBridgeAnimation( true );
-            bridge->SetDown( true );
+            if ( !bridge->isDown() ) {
+                if ( interface ) {
+                    interface->RedrawBridgeAnimation( true );
+                }
+
+                bridge->SetDown( true );
+            }
+
             bridge->SetDestroy();
         }
         break;
@@ -1121,11 +1139,6 @@ const HeroBase * Battle::Arena::GetCurrentCommander( void ) const
     return GetCommander( current_color );
 }
 
-bool Battle::Arena::NetworkTurn( void )
-{
-    return interface && interface->NetworkTurn( result_game );
-}
-
 Battle::Unit * Battle::Arena::CreateElemental( const Spell & spell )
 {
     const HeroBase * hero = GetCurrentCommander();
@@ -1240,9 +1253,9 @@ bool Battle::Arena::IsShootingPenalty( const Unit & attacker, const Unit & defen
         return false;
 
     // check castle walls defensed
-    const Points points = GetLinePoints( attacker.GetBackPoint(), defender.GetBackPoint(), CELLW / 3 );
+    const std::vector<fheroes2::Point> points = GetLinePoints( attacker.GetBackPoint(), defender.GetBackPoint(), CELLW / 3 );
 
-    for ( Points::const_iterator it = points.begin(); it != points.end(); ++it ) {
+    for ( std::vector<fheroes2::Point>::const_iterator it = points.begin(); it != points.end(); ++it ) {
         if ( 0 == board[8].GetObject() && ( board[8].GetPos() & *it ) )
             return false;
         else if ( 0 == board[29].GetObject() && ( board[29].GetPos() & *it ) )

@@ -33,8 +33,6 @@
 #include "tinyconfig.h"
 #include "version.h"
 
-#define DEFAULT_PORT 5154
-
 enum
 {
     // ??? = 0x00000001,
@@ -51,9 +49,6 @@ enum
     GLOBAL_SHOWBUTTONS = 0x00000200,
     GLOBAL_SHOWSTATUS = 0x00000400,
 
-    GLOBAL_KEEP_ASPECT_RATIO = 0x00001000,
-    GLOBAL_FONTRENDERBLENDED1 = 0x00002000,
-    GLOBAL_FONTRENDERBLENDED2 = 0x00004000,
     GLOBAL_FULLSCREEN = 0x00008000,
     GLOBAL_USESWSURFACE = 0x00010000,
 
@@ -79,14 +74,10 @@ struct settings_t
     u32 id;
     const char * str;
 
-    bool operator==( const std::string & s ) const
-    {
-        return str && s == str;
-    };
     bool operator==( u32 i ) const
     {
         return id && id == i;
-    };
+    }
 };
 
 // external settings
@@ -114,10 +105,6 @@ const settings_t settingsGeneral[] = {
     {
         GLOBAL_USESWSURFACE,
         "use swsurface only",
-    },
-    {
-        GLOBAL_KEEP_ASPECT_RATIO,
-        "keep aspect ratio",
     },
     {
         0,
@@ -163,10 +150,6 @@ const settings_t settingsFHeroes2[] = {
         _( "world: scouting skill show extended content info" ),
     },
     {
-        Settings::WORLD_ABANDONED_MINE_RANDOM,
-        _( "world: abandoned mine random resource" ),
-    },
-    {
         Settings::WORLD_ALLOW_SET_GUARDIAN,
         _( "world: allow set guardian to objects" ),
     },
@@ -181,10 +164,6 @@ const settings_t settingsFHeroes2[] = {
     {
         Settings::WORLD_BAN_WEEKOF,
         _( "world: ban for WeekOf/MonthOf Monsters" ),
-    },
-    {
-        Settings::WORLD_NEW_VERSION_WEEKOF,
-        _( "world: new version WeekOf (+growth)" ),
     },
     {
         Settings::WORLD_BAN_PLAGUES,
@@ -350,7 +329,6 @@ Settings::Settings()
     , battle_speed( DEFAULT_SPEED_DELAY )
     , game_type( 0 )
     , preferably_count_players( 0 )
-    , port( DEFAULT_PORT )
 {
     ExtSetModes( GAME_AUTOSAVE_ON );
     ExtSetModes( WORLD_SHOW_VISITED_CONTENT );
@@ -487,11 +465,6 @@ bool Settings::Read( const std::string & filename )
         ival = config.IntParams( "fonts small size" );
         if ( 0 < ival )
             size_small = ival;
-
-        if ( config.StrParams( "fonts small render" ) == "blended" )
-            opt_global.SetModes( GLOBAL_FONTRENDERBLENDED1 );
-        if ( config.StrParams( "fonts normal render" ) == "blended" )
-            opt_global.SetModes( GLOBAL_FONTRENDERBLENDED2 );
     }
 
     // music source
@@ -605,9 +578,6 @@ bool Settings::Read( const std::string & filename )
     if ( config.Exists( "auto spell casting" ) ) {
         setBattleAutoSpellcast( config.StrParams( "auto spell casting" ) == "on" );
     }
-
-    // network port
-    port = config.Exists( "port" ) ? config.IntParams( "port" ) : DEFAULT_PORT;
 
     // playmus command
     _externalMusicCommand = config.StrParams( "playmus command" );
@@ -742,9 +712,6 @@ std::string Settings::String( void ) const
     os << std::endl << "# music volume: 0 - 10" << std::endl;
     os << "music volume = " << music_volume << std::endl;
 
-    os << std::endl << "# keep aspect ratio in fullscreen mode (experimental)" << std::endl;
-    os << GetGeneralSettingDescription( GLOBAL_KEEP_ASPECT_RATIO ) << " = " << ( opt_global.Modes( GLOBAL_KEEP_ASPECT_RATIO ) ? "on" : "off" ) << std::endl;
-
     os << std::endl << "# run in fullscreen mode: on off (use F4 key to switch between)" << std::endl;
     os << GetGeneralSettingDescription( GLOBAL_FULLSCREEN ) << " = " << ( opt_global.Modes( GLOBAL_FULLSCREEN ) ? "on" : "off" ) << std::endl;
 
@@ -764,7 +731,27 @@ std::string Settings::String( void ) const
     os << "battle speed = " << battle_speed << std::endl;
 
     os << std::endl << "# scroll speed: 1 - 4" << std::endl;
-    os << "scroll speed = " << scroll_speed << std::endl;
+    os << "scroll speed = ";
+
+    switch ( scroll_speed ) {
+    case SCROLL_SLOW:
+        os << 1;
+        break;
+    case SCROLL_NORMAL:
+        os << 2;
+        break;
+    case SCROLL_FAST1:
+        os << 3;
+        break;
+    case SCROLL_FAST2:
+        os << 4;
+        break;
+    default:
+        os << 2;
+        break;
+    }
+
+    os << std::endl;
 
     os << std::endl << "# show battle grid: on off" << std::endl;
     os << "battle grid = " << ( opt_global.Modes( GLOBAL_BATTLE_SHOW_GRID ) ? "on" : "off" ) << std::endl;
@@ -868,14 +855,6 @@ int Settings::FontsNormalSize( void ) const
 int Settings::FontsSmallSize( void ) const
 {
     return size_small;
-}
-bool Settings::FontSmallRenderBlended( void ) const
-{
-    return opt_global.Modes( GLOBAL_FONTRENDERBLENDED1 );
-}
-bool Settings::FontNormalRenderBlended( void ) const
-{
-    return opt_global.Modes( GLOBAL_FONTRENDERBLENDED2 );
 }
 
 void Settings::SetProgramPath( const char * argv0 )
@@ -1299,11 +1278,6 @@ int Settings::PreferablyCountPlayers( void ) const
     return preferably_count_players;
 }
 
-int Settings::GetPort( void ) const
-{
-    return port;
-}
-
 const std::string & Settings::MapsFile( void ) const
 {
     return current_maps_file.file;
@@ -1329,9 +1303,9 @@ int Settings::MapsDifficulty( void ) const
     return current_maps_file.difficulty;
 }
 
-Size Settings::MapsSize( void ) const
+fheroes2::Size Settings::MapsSize( void ) const
 {
-    return Size( current_maps_file.size_w, current_maps_file.size_h );
+    return fheroes2::Size( current_maps_file.size_w, current_maps_file.size_h );
 }
 
 bool Settings::AllowChangeRace( int f ) const
@@ -1359,11 +1333,6 @@ bool Settings::WinsCompAlsoWins( void ) const
     return current_maps_file.WinsCompAlsoWins();
 }
 
-bool Settings::WinsAllowNormalVictory( void ) const
-{
-    return current_maps_file.WinsAllowNormalVictory();
-}
-
 int Settings::WinsFindArtifactID( void ) const
 {
     return current_maps_file.WinsFindArtifactID();
@@ -1379,12 +1348,12 @@ u32 Settings::WinsAccumulateGold( void ) const
     return current_maps_file.WinsAccumulateGold();
 }
 
-Point Settings::WinsMapsPositionObject( void ) const
+fheroes2::Point Settings::WinsMapsPositionObject( void ) const
 {
     return current_maps_file.WinsMapsPositionObject();
 }
 
-Point Settings::LossMapsPositionObject( void ) const
+fheroes2::Point Settings::LossMapsPositionObject( void ) const
 {
     return current_maps_file.LossMapsPositionObject();
 }
@@ -1578,11 +1547,6 @@ bool Settings::ExtGameRememberLastFocus( void ) const
     return ExtModes( GAME_REMEMBER_LAST_FOCUS );
 }
 
-bool Settings::ExtWorldAbandonedMineRandom( void ) const
-{
-    return ExtModes( WORLD_ABANDONED_MINE_RANDOM );
-}
-
 bool Settings::ExtWorldAllowSetGuardian( void ) const
 {
     return ExtModes( WORLD_ALLOW_SET_GUARDIAN );
@@ -1693,11 +1657,6 @@ bool Settings::ExtGameHideInterface( void ) const
     return ExtModes( GAME_HIDE_INTERFACE );
 }
 
-bool Settings::ExtWorldNewVersionWeekOf( void ) const
-{
-    return ExtModes( WORLD_NEW_VERSION_WEEKOF );
-}
-
 bool Settings::ExtWorldBanWeekOf( void ) const
 {
     return ExtModes( WORLD_BAN_WEEKOF );
@@ -1778,36 +1737,42 @@ bool Settings::ExtGameContinueAfterVictory( void ) const
     return ExtModes( GAME_CONTINUE_AFTER_VICTORY );
 }
 
-const Point & Settings::PosRadar( void ) const
+const fheroes2::Point & Settings::PosRadar( void ) const
 {
     return pos_radr;
 }
-const Point & Settings::PosButtons( void ) const
+
+const fheroes2::Point & Settings::PosButtons( void ) const
 {
     return pos_bttn;
 }
-const Point & Settings::PosIcons( void ) const
+
+const fheroes2::Point & Settings::PosIcons( void ) const
 {
     return pos_icon;
 }
-const Point & Settings::PosStatus( void ) const
+
+const fheroes2::Point & Settings::PosStatus( void ) const
 {
     return pos_stat;
 }
 
-void Settings::SetPosRadar( const Point & pt )
+void Settings::SetPosRadar( const fheroes2::Point & pt )
 {
     pos_radr = pt;
 }
-void Settings::SetPosButtons( const Point & pt )
+
+void Settings::SetPosButtons( const fheroes2::Point & pt )
 {
     pos_bttn = pt;
 }
-void Settings::SetPosIcons( const Point & pt )
+
+void Settings::SetPosIcons( const fheroes2::Point & pt )
 {
     pos_icon = pt;
 }
-void Settings::SetPosStatus( const Point & pt )
+
+void Settings::SetPosStatus( const fheroes2::Point & pt )
 {
     pos_stat = pt;
 }
@@ -1844,11 +1809,6 @@ void Settings::BinaryLoad( void )
 bool Settings::FullScreen( void ) const
 {
     return System::isEmbededDevice() || opt_global.Modes( GLOBAL_FULLSCREEN );
-}
-
-bool Settings::KeepAspectRatio( void ) const
-{
-    return opt_global.Modes( GLOBAL_KEEP_ASPECT_RATIO );
 }
 
 StreamBase & operator<<( StreamBase & msg, const Settings & conf )

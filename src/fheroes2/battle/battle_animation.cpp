@@ -284,8 +284,6 @@ AnimationReference::AnimationReference( int monsterID )
     }
 }
 
-AnimationReference::~AnimationReference() {}
-
 bool AnimationReference::appendFrames( std::vector<int> & target, int animID )
 {
     if ( _monsterInfo.hasAnim( animID ) ) {
@@ -446,16 +444,6 @@ AnimationSequence AnimationReference::getAnimationSequence( int animState ) cons
     return AnimationSequence( getAnimationVector( animState ) );
 }
 
-int AnimationReference::getStaticFrame() const
-{
-    return _static.back();
-}
-
-int AnimationReference::getDeathFrame() const
-{
-    return ( _death.empty() ) ? _static.back() : _death.back();
-}
-
 uint32_t AnimationReference::getMoveSpeed() const
 {
     return _monsterInfo.moveSpeed;
@@ -476,7 +464,7 @@ size_t AnimationReference::getProjectileID( const double angle ) const
     return _monsterInfo.getProjectileID( angle );
 }
 
-Point AnimationReference::getBlindOffset() const
+fheroes2::Point AnimationReference::getBlindOffset() const
 {
     return _monsterInfo.eyePosition;
 }
@@ -486,12 +474,12 @@ int AnimationReference::getTroopCountOffset( bool isReflect ) const
     return isReflect ? _monsterInfo.troopCountOffsetRight : _monsterInfo.troopCountOffsetLeft;
 }
 
-Point AnimationReference::getProjectileOffset( size_t direction ) const
+fheroes2::Point AnimationReference::getProjectileOffset( size_t direction ) const
 {
     if ( _monsterInfo.projectileOffset.size() > direction ) {
         return _monsterInfo.projectileOffset[direction];
     }
-    return Point();
+    return fheroes2::Point();
 }
 
 uint32_t AnimationReference::getIdleDelay() const
@@ -504,15 +492,6 @@ AnimationState::AnimationState( int monsterID )
     , _animState( Monster_Info::STATIC )
     , _currentSequence( _static )
 {}
-
-AnimationState::AnimationState( const AnimationReference & ref, int state )
-    : AnimationReference( ref )
-    , _currentSequence( _static )
-{
-    switchAnimation( state );
-}
-
-AnimationState::~AnimationState() {}
 
 bool AnimationState::switchAnimation( int animState, bool reverse )
 {
@@ -577,7 +556,7 @@ int AnimationState::getFrame() const
     return _currentSequence.getFrame();
 }
 
-int AnimationState::animationLength() const
+size_t AnimationState::animationLength() const
 {
     return _currentSequence.animationLength();
 }

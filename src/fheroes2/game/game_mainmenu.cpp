@@ -28,6 +28,7 @@
 #include "dialog_resolution.h"
 #include "game.h"
 #include "game_interface.h"
+#include "game_mainmenu_ui.h"
 #include "gamedefs.h"
 #include "icn.h"
 #include "image.h"
@@ -75,12 +76,12 @@ int Game::MainMenu( bool isFirstGameRun )
     fheroes2::Display & display = fheroes2::Display::instance();
 
     // image background
-    fheroes2::Copy( fheroes2::AGG::GetICN( ICN::HEROES, 0 ), display );
+    fheroes2::drawMainMenuScreen();
     if ( isFirstGameRun ) {
         bool isResolutionChanged = Dialog::SelectResolution();
         conf.Save( "fheroes2.cfg" );
         if ( isResolutionChanged ) {
-            fheroes2::Copy( fheroes2::AGG::GetICN( ICN::HEROES, 0 ), display );
+            fheroes2::drawMainMenuScreen();
         }
 
         Dialog::Message( "Please remember",
@@ -97,7 +98,7 @@ int Game::MainMenu( bool isFirstGameRun )
     fheroes2::Button buttonCredits( 0, 0, ICN::BTNSHNGL, CREDITS_DEFAULT, CREDITS_DEFAULT + 2 );
     fheroes2::Button buttonQuit( 0, 0, ICN::BTNSHNGL, QUIT_DEFAULT, QUIT_DEFAULT + 2 );
 
-    const Point lt_pt( 0, 0 );
+    const fheroes2::Point lt_pt( 0, 0 );
 
     const fheroes2::Sprite & lantern10 = fheroes2::AGG::GetICN( ICN::SHNGANIM, 0 );
     fheroes2::Blit( lantern10, display, lantern10.x(), lantern10.y() );

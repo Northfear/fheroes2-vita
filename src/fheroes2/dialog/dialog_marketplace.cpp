@@ -169,7 +169,7 @@ public:
         }
 
         _singlePlayer = playerCount == 1;
-    };
+    }
 
     void RedrawInfoBuySell( u32 count_sell, u32 count_buy, u32 max_sell, u32 orig_buy );
     void ShowTradeArea( int resourceFrom, int resourceTo, u32 max_buy, u32 max_sell, u32 count_buy, u32 count_sell, bool fromTradingPost );
@@ -462,7 +462,7 @@ void Dialog::Marketplace( Kingdom & kingdom, bool fromTradingPost )
 
         // click to
         for ( u32 ii = 0; ii < rectsTo.size(); ++ii ) {
-            const Rect & rect_to = rectsTo[ii];
+            const fheroes2::Rect & rect_to = rectsTo[ii];
 
             if ( le.MouseClickLeft( rect_to ) ) {
                 resourceTo = Resource::FromIndexSprite2( ii );
@@ -491,8 +491,8 @@ void Dialog::Marketplace( Kingdom & kingdom, bool fromTradingPost )
 
         // Scrollbar
         if ( buttonLeft.isEnabled() && buttonRight.isEnabled() && max_buy && le.MousePressLeft( scrollbar.getArea() ) ) {
-            const Point & mousePos = le.GetMouseCursor();
-            scrollbar.moveToPos( fheroes2::Point( mousePos.x, mousePos.y ) );
+            const fheroes2::Point & mousePos = le.GetMouseCursor();
+            scrollbar.moveToPos( mousePos );
             const int32_t seek = scrollbar.currentIndex();
 
             count_buy = seek * ( Resource::GOLD == resourceTo ? GetTradeCosts( resourceFrom, resourceTo, fromTradingPost ) : 1 );

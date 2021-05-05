@@ -145,7 +145,7 @@ bool Game::Save( const std::string & fn )
         Game::SetLastSavename( fn );
 
     // raw info content
-    fs << static_cast<char>( SAV2ID3 >> 8 ) << static_cast<char>( SAV2ID3 ) << std::to_string( loadver ) << loadver
+    fs << static_cast<uint8_t>( SAV2ID3 >> 8 ) << static_cast<uint8_t>( SAV2ID3 & 0xFF ) << std::to_string( loadver ) << loadver
        << HeaderSAV( conf.CurrentFileInfo(), conf.PriceLoyaltyVersion(), conf.GameType() );
     fs.close();
 
@@ -372,4 +372,14 @@ std::string Game::GetSaveFileExtension( const int gameType )
         return ".savh";
 
     return ".savm";
+}
+
+bool Game::SaveCompletedCampaignScenario()
+{
+    const std::string & name = Settings::Get().CurrentFileInfo().name;
+
+    std::string base = name.empty() ? "newgame" : name;
+    std::replace_if( base.begin(), base.end(), ::isspace, '_' );
+
+    return Save( System::ConcatePath( Game::GetSaveDir(), base ) + "_Complete" + Game::GetSaveFileExtension() );
 }
