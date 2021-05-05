@@ -1466,10 +1466,10 @@ void LocalEvent::HandleControllerButtonEvent( const SDL_ControllerButtonEvent & 
         }
 #endif
         if ( button.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER ) {
-            key_value = KEY_t;
+            key_value = KEY_h;
         }
         else if ( button.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER ) {
-            key_value = KEY_h;
+            key_value = KEY_t;
         }
         else if ( button.button == SDL_CONTROLLER_BUTTON_X ) {
             key_value = KEY_e;
