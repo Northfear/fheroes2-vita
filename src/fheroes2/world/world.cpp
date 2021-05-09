@@ -246,13 +246,14 @@ void World::Defaults( void )
     // playing kingdom
     vec_kingdoms.Init();
 
+    // Map seed is random and persisted on saves
+    // this has to be generated before initializing heroes, as campaign-specific heroes start at a higher level and thus have to simulate level ups
+    _seed = Rand::Get( std::numeric_limits<uint32_t>::max() );
+
     // initialize all heroes
     vec_heroes.Init();
 
     vec_castles.Init();
-
-    // map seed is random and persisted on saves
-    _seed = Rand::Get( std::numeric_limits<uint32_t>::max() );
 }
 
 void World::Reset( void )
@@ -307,7 +308,7 @@ void World::NewMaps( int32_t sw, int32_t sh )
     vec_tiles.resize( static_cast<size_t>( fheroes2::Size::width ) * fheroes2::Size::height );
 
     // init all tiles
-    for ( MapsTiles::iterator it = vec_tiles.begin(); it != vec_tiles.end(); ++it ) {
+    for ( size_t i = 0; i < vec_tiles.size(); ++i ) {
         MP2::mp2tile_t mp2tile;
 
         mp2tile.tileIndex = static_cast<uint16_t>( Rand::Get( 16, 19 ) ); // index sprite ground, see ground32.til
@@ -323,7 +324,7 @@ void World::NewMaps( int32_t sw, int32_t sh )
         mp2tile.editorObjectLink = 0;
         mp2tile.editorObjectOverlay = 0;
 
-        ( *it ).Init( std::distance( vec_tiles.begin(), it ), mp2tile );
+        vec_tiles[i].Init( static_cast<int32_t>( i ), mp2tile );
     }
 
     // reset current maps info

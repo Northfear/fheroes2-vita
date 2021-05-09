@@ -24,8 +24,8 @@
 #include "rand.h"
 #include <algorithm>
 
-RandomizedDelay::RandomizedDelay( uint32_t delay )
-    : TimeDelay( delay )
+RandomizedDelay::RandomizedDelay( const uint32_t delay )
+    : fheroes2::TimeDelay( delay )
     , halfDelay( delay / 2 )
     , timerIsSet( false )
 {}
@@ -34,12 +34,14 @@ bool RandomizedDelay::checkDelay()
 {
     if ( !timerIsSet ) {
         // Randomize delay as 0.75 to 1.25 original value
-        second = Rand::Get( 0, halfDelay ) + halfDelay * 3 / 2;
+        setDelay( Rand::Get( 0, halfDelay ) + halfDelay * 3 / 2 );
         timerIsSet = true;
     }
-    const bool res = Trigger();
-    if ( res )
+    const bool res = isPassed();
+    if ( res ) {
+        reset();
         timerIsSet = false;
+    }
     return res;
 }
 

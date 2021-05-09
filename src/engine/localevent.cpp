@@ -255,6 +255,7 @@ void LocalEvent::CloseController()
 
 void LocalEvent::OpenTouchpad()
 {
+#if defined( FHEROES2_VITA ) || defined( __SWITCH__ )
     const int touchNumber = SDL_GetNumTouchDevices();
     if ( touchNumber > 0 ) {
         _touchpadAvailable = true;
@@ -263,6 +264,7 @@ void LocalEvent::OpenTouchpad()
         SDL_SetHint( SDL_HINT_TOUCH_MOUSE_EVENTS, "0" );
 #endif
     }
+#endif
 }
 #endif
 
@@ -983,6 +985,7 @@ namespace
     public:
         ColorCycling()
             : _counter( 0 )
+            , _isPaused( false )
             , _preRenderDrawing( nullptr )
             , _posRenderDrawing( nullptr )
         {}
@@ -1011,7 +1014,7 @@ namespace
 
         bool isRedrawRequired() const
         {
-            return _prevDraw.getMs() >= 220;
+            return !_isPaused && _prevDraw.getMs() >= 220;
         }
 
         void registerDrawing( void ( *preRenderDrawing )(), void ( *postRenderDrawing )() )
@@ -1023,10 +1026,23 @@ namespace
                 _posRenderDrawing = postRenderDrawing;
         }
 
+        void pause()
+        {
+            _isPaused = true;
+        }
+
+        void resume()
+        {
+            _isPaused = false;
+            _prevDraw.reset();
+            _timer.reset();
+        }
+
     private:
         fheroes2::Time _timer;
         fheroes2::Time _prevDraw;
         uint32_t _counter;
+        bool _isPaused;
 
         void ( *_preRenderDrawing )();
         void ( *_posRenderDrawing )();
@@ -1055,12 +1071,14 @@ LocalEvent & LocalEvent::Get( void )
 void LocalEvent::RegisterCycling( void ( *preRenderDrawing )(), void ( *postRenderDrawing )() ) const
 {
     colorCycling.registerDrawing( preRenderDrawing, postRenderDrawing );
+    colorCycling.resume();
 
     fheroes2::Display::instance().subscribe( ApplyCycling, ResetCycling );
 }
 
 void LocalEvent::PauseCycling() const
 {
+    colorCycling.pause();
     fheroes2::Display::instance().subscribe( NULL, NULL );
 }
 
@@ -1232,7 +1250,6 @@ void LocalEvent::StopSounds()
     Mixer::Pause();
     Music::Pause();
     _musicVolume = Music::Volume( 0 );
-    loop_delay = 100;
 }
 
 void LocalEvent::ResumeSounds()
@@ -1246,7 +1263,6 @@ void LocalEvent::ResumeSounds()
             Mixer::Resume();
         _isHiddenWindow = false;
     }
-    loop_delay = 1;
 }
 
 #if SDL_VERSION_ATLEAST( 2, 0, 0 )
@@ -1886,6 +1902,18 @@ void LocalEvent::SetStateDefaults( void )
     SetState( SDL_JOYBALLMOTION, false );
     SetState( SDL_JOYHATMOTION, false );
     SetState( SDL_SYSWMEVENT, false );
+
+#if SDL_VERSION_ATLEAST( 2, 0, 0 )
+#if defined( FHEROES2_VITA ) || defined( __SWITCH__ )
+    SetState( SDL_FINGERDOWN, true );
+    SetState( SDL_FINGERUP, true );
+    SetState( SDL_FINGERMOTION, true );
+#else
+    SetState( SDL_FINGERDOWN, false );
+    SetState( SDL_FINGERUP, false );
+    SetState( SDL_FINGERMOTION, false );
+#endif
+#endif
 
 #if SDL_VERSION_ATLEAST( 2, 0, 0 )
     SetState( SDL_WINDOWEVENT, true );
