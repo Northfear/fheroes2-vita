@@ -25,14 +25,18 @@
 
 namespace Maps
 {
-    class FileInfo;
+    struct FileInfo;
 }
 
 namespace Game
 {
     bool AutoSave();
+
     bool Save( const std::string & );
-    bool Load( const std::string & );
+
+    // Returns GameMode::CANCEL in case of failure.
+    fheroes2::GameMode Load( const std::string & fileName );
+
     bool LoadSAV2FileInfo( const std::string &, Maps::FileInfo & );
 
     bool SaveCompletedCampaignScenario();

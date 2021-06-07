@@ -26,7 +26,6 @@
 
 #include "agg_image.h"
 #include "artifact.h"
-#include "cursor.h"
 #include "dialog.h"
 #include "dialog_selectitems.h"
 #include "game.h"
@@ -231,38 +230,6 @@ bool SkipExtra( int art )
     }
 
     return false;
-}
-
-void Artifact::UpdateStats( const std::string & spec )
-{
-#ifdef WITH_XML
-    // parse artifacts.xml
-    TiXmlDocument doc;
-    const TiXmlElement * xml_artifacts = NULL;
-
-    if ( doc.LoadFile( spec.c_str() ) && NULL != ( xml_artifacts = doc.FirstChildElement( "artifacts" ) ) ) {
-        size_t index = 0;
-        const TiXmlElement * xml_artifact = xml_artifacts->FirstChildElement( "artifact" );
-        for ( ; xml_artifact && index < UNKNOWN; xml_artifact = xml_artifact->NextSiblingElement( "artifact" ), ++index ) {
-            int value;
-            artifactstats_t * ptr = &artifacts[index];
-
-            xml_artifact->Attribute( "disable", &value );
-            if ( value )
-                ptr->bits |= ART_DISABLED;
-
-            xml_artifact->Attribute( "extra", &value );
-            if ( value && !SkipExtra( index ) )
-                ptr->extra = value;
-
-            Artifact art( index );
-        }
-    }
-    else
-        VERBOSE_LOG( spec << ": " << doc.ErrorDesc() );
-#else
-    (void)spec;
-#endif
 }
 
 Artifact::Artifact( int art )
@@ -541,7 +508,7 @@ int Artifact::Level( void ) const
     case SPADE_NECROMANCY:
     case HEART_FIRE:
     case HEART_ICE:
-        return Settings::Get().PriceLoyaltyVersion() ? ART_LOYALTY | LoyaltyLevel() : ART_LOYALTY;
+        return Settings::Get().isCurrentMapPriceOfLoyalty() ? ART_LOYALTY | LoyaltyLevel() : ART_LOYALTY;
 
     default:
         break;
@@ -638,7 +605,6 @@ int Artifact::Rand( level_t lvl )
         if ( ( lvl & Artifact( art ).Level() ) && !( artifacts[art].bits & ART_DISABLED ) && !( artifacts[art].bits & ART_RNDUSED ) )
             v.push_back( art );
 
-    //
     if ( v.empty() ) {
         for ( u32 art = ULTIMATE_BOOK; art < UNKNOWN; ++art )
             if ( ( lvl & Artifact( art ).Level() ) && !( artifacts[art].bits & ART_DISABLED ) )
@@ -655,7 +621,7 @@ Artifact Artifact::FromMP2IndexSprite( u32 index )
 {
     if ( 0xA2 > index )
         return Artifact( ( index - 1 ) / 2 );
-    else if ( Settings::Get().PriceLoyaltyVersion() && 0xAB < index && 0xCE > index )
+    else if ( Settings::Get().isPriceOfLoyaltySupported() && 0xAB < index && 0xCE > index )
         return Artifact( ( index - 1 ) / 2 );
     else if ( 0xA3 == index )
         return Artifact( Rand( ART_LEVEL123 ) );
@@ -941,14 +907,12 @@ ArtifactsBar::ArtifactsBar( const Heroes * hero, const bool mini, const bool ro,
 
 void ArtifactsBar::ResetSelected( void )
 {
-    Cursor::Get().Hide();
     spcursor.hide();
     Interface::ItemsActionBar<Artifact>::ResetSelected();
 }
 
 void ArtifactsBar::Redraw( fheroes2::Image & dstsf )
 {
-    Cursor::Get().Hide();
     spcursor.hide();
     Interface::ItemsActionBar<Artifact>::Redraw( dstsf );
 }
@@ -964,8 +928,6 @@ void ArtifactsBar::RedrawBackground( const fheroes2::Rect & pos, fheroes2::Image
 void ArtifactsBar::RedrawItem( Artifact & art, const fheroes2::Rect & pos, bool selected, fheroes2::Image & dstsf )
 {
     if ( art.isValid() ) {
-        Cursor::Get().Hide();
-
         if ( use_mini_sprite ) {
             const fheroes2::Sprite & artifactSprite = fheroes2::AGG::GetICN( ICN::ARTFX, art.IndexSprite32() );
             fheroes2::Fill( dstsf, pos.x + 1, pos.y + 1, artifactSprite.width(), artifactSprite.height(), 0 );
@@ -1022,7 +984,6 @@ bool ArtifactsBar::ActionBarLeftMouseSingleClick( Artifact & art )
 
     if ( art.isValid() ) {
         if ( !read_only ) {
-            Cursor::Get().Hide();
             spcursor.hide();
         }
     }

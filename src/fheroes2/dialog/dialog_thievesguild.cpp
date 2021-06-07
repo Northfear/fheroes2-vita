@@ -45,7 +45,6 @@ struct ValueColors : std::pair<int, int>
     {
         return v == first;
     }
-    // bool IsColor(int c) const { return (c & second); };
 
     static bool SortValueGreat( const ValueColors & v1, const ValueColors & v2 )
     {
@@ -68,8 +67,8 @@ void GetTownsInfo( std::vector<ValueColors> & v, const Colors & colors )
     v.clear();
 
     for ( Colors::const_iterator color = colors.begin(); color != colors.end(); ++color ) {
-        int value = world.GetKingdom( *color ).GetCountTown();
-        UpdateValuesColors( v, value, *color );
+        const uint32_t townCount = world.GetKingdom( *color ).GetCountTown();
+        UpdateValuesColors( v, static_cast<int32_t>( townCount ), *color );
     }
 
     std::sort( v.begin(), v.end(), ValueColors::SortValueGreat );
@@ -80,8 +79,8 @@ void GetCastlesInfo( std::vector<ValueColors> & v, const Colors & colors )
     v.clear();
 
     for ( Colors::const_iterator color = colors.begin(); color != colors.end(); ++color ) {
-        int value = world.GetKingdom( *color ).GetCountCastle();
-        UpdateValuesColors( v, value, *color );
+        const uint32_t castleCount = world.GetKingdom( *color ).GetCountCastle();
+        UpdateValuesColors( v, static_cast<int32_t>( castleCount ), *color );
     }
 
     std::sort( v.begin(), v.end(), ValueColors::SortValueGreat );
@@ -92,8 +91,8 @@ void GetHeroesInfo( std::vector<ValueColors> & v, const Colors & colors )
     v.clear();
 
     for ( Colors::const_iterator color = colors.begin(); color != colors.end(); ++color ) {
-        const int value = world.GetKingdom( *color ).GetHeroes().size();
-        UpdateValuesColors( v, value, *color );
+        const size_t heroCount = world.GetKingdom( *color ).GetHeroes().size();
+        UpdateValuesColors( v, static_cast<int>( heroCount ), *color );
     }
 
     std::sort( v.begin(), v.end(), ValueColors::SortValueGreat );
@@ -197,16 +196,16 @@ void GetBestHeroArmyInfo( std::vector<ValueColors> & v, const Colors & colors )
 
 void DrawFlags( const std::vector<ValueColors> & v, const fheroes2::Point & pos, int step, size_t count )
 {
-    for ( int32_t ii = 0; ii < static_cast<int32_t>( count ); ++ii ) {
-        if ( ii < static_cast<int32_t>( v.size() ) ) {
-            const Colors colors( v[ii].second );
-            const int32_t sw = fheroes2::AGG::GetICN( ICN::FLAG32, 1 ).width();
-            int32_t px = pos.x + ii * step - ( colors.size() * sw - ( colors.size() - 1 ) ) / 2 + 3;
+    for ( int32_t i = 0; i < static_cast<int32_t>( count ); ++i ) {
+        if ( i < static_cast<int32_t>( v.size() ) ) {
+            const Colors colors( v[i].second );
+            const int32_t sw = fheroes2::AGG::GetICN( ICN::TOWNWIND, 22 ).width();
+            int32_t px = pos.x + i * step - ( static_cast<int32_t>( colors.size() ) * sw ) / 2 + 3;
 
             for ( Colors::const_iterator color = colors.begin(); color != colors.end(); ++color ) {
-                const fheroes2::Sprite & flag = fheroes2::AGG::GetICN( ICN::FLAG32, Color::GetIndex( *color ) * 2 + 1 );
-                fheroes2::Blit( flag, fheroes2::Display::instance(), px, pos.y );
-                px = px + sw - 1;
+                const fheroes2::Sprite & flag = fheroes2::AGG::GetICN( ICN::TOWNWIND, 22 + Color::GetIndex( *color ) );
+                fheroes2::Blit( flag, fheroes2::Display::instance(), px, pos.y - 2 );
+                px = px + sw;
             }
         }
     }
@@ -239,44 +238,44 @@ void DrawHeroStats( const std::vector<ValueColors> & v, const fheroes2::Point & 
         if ( hero == nullptr ) {
             continue;
         }
-        const int32_t px = pos.x - 25 + i * step;
+        const int32_t px = pos.x - 25 + static_cast<int32_t>( i ) * step;
 
         Text text( _( "Att." ), Font::SMALL );
         text.Blit( px, pos.y );
         text.Set( std::to_string( hero->GetAttack() ) );
         text.Blit( px + 50 - text.w(), pos.y );
         text.Set( _( "Def." ) );
-        text.Blit( px, pos.y + 10 );
+        text.Blit( px, pos.y + 11 );
         text.Set( std::to_string( hero->GetDefense() ) );
-        text.Blit( px + 50 - text.w(), pos.y + 10 );
+        text.Blit( px + 50 - text.w(), pos.y + 11 );
         text.Set( _( "Power" ), Font::SMALL );
-        text.Blit( px, pos.y + 20 );
+        text.Blit( px, pos.y + 22 );
         text.Set( std::to_string( hero->GetPower() ) );
-        text.Blit( px + 50 - text.w(), pos.y + 20 );
+        text.Blit( px + 50 - text.w(), pos.y + 22 );
         text.Set( _( "Knowl" ), Font::SMALL );
-        text.Blit( px, pos.y + 30 );
+        text.Blit( px, pos.y + 33 );
         text.Set( std::to_string( hero->GetKnowledge() ) );
-        text.Blit( px + 50 - text.w(), pos.y + 30 );
+        text.Blit( px + 50 - text.w(), pos.y + 33 );
     }
 }
 
-void DrawPersonality( const Colors & colors, fheroes2::Point & pos, int step )
+void DrawPersonality( const Colors & colors, const fheroes2::Point & pos, int step )
 {
     for ( size_t i = 0; i < colors.size(); ++i ) {
         const Player * player = Players::Get( colors[i] );
         const Text text( player->isControlHuman() ? _( "Human" ) : player->GetPersonalityString(), Font::SMALL );
-        text.Blit( pos.x - text.w() / 2 + step * i, pos.y );
+        text.Blit( pos.x - text.w() / 2 + step * static_cast<int32_t>( i ), pos.y );
     }
 }
 
-void DrawBestMonsterIcons( const Colors & colors, fheroes2::Point & pos, int step )
+void DrawBestMonsterIcons( const Colors & colors, const fheroes2::Point & pos, int step )
 {
     for ( size_t i = 0; i < colors.size(); ++i ) {
         const Monster monster = world.GetKingdom( colors[i] ).GetStrongestMonster();
         if ( monster.isValid() ) {
             const fheroes2::Sprite & sprite = fheroes2::AGG::GetICN( ICN::MONS32, monster.GetSpriteIndex() );
             if ( !sprite.empty() )
-                fheroes2::Blit( sprite, fheroes2::Display::instance(), pos.x + i * step - sprite.width() / 2, pos.y );
+                fheroes2::Blit( sprite, fheroes2::Display::instance(), pos.x + static_cast<int32_t>( i ) * step - sprite.width() / 2, pos.y );
         }
     }
 }
@@ -285,11 +284,8 @@ void Dialog::ThievesGuild( bool oracle )
 {
     fheroes2::Display & display = fheroes2::Display::instance();
 
-    // cursor
-    Cursor & cursor = Cursor::Get();
-
-    cursor.Hide();
-    cursor.SetThemes( Cursor::POINTER );
+    // setup cursor
+    const CursorRestorer cursorRestorer( true, Cursor::POINTER );
 
     Dialog::FrameBorder frameborder( fheroes2::Size( fheroes2::Display::DEFAULT_WIDTH, fheroes2::Display::DEFAULT_HEIGHT ) );
     const fheroes2::Point cur_pt( frameborder.GetArea().x, frameborder.GetArea().y );
@@ -303,7 +299,7 @@ void Dialog::ThievesGuild( bool oracle )
     std::vector<ValueColors> v;
     v.reserve( KINGDOMMAX );
     const Colors colors( Game::GetActualKingdomColors() );
-    const int textx = 185;
+    const int textx = 207;
     const int startx = 264;
     const int stepx = 68;
     Text text;
@@ -335,7 +331,7 @@ void Dialog::ThievesGuild( bool oracle )
         }
 
         dst_pt.x = cur_pt.x + startx + stepx * ii - text.w() / 2;
-        dst_pt.y = cur_pt.y + 5;
+        dst_pt.y = cur_pt.y + 1;
         text.Blit( dst_pt.x, dst_pt.y );
     }
 
@@ -357,7 +353,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Number of Towns:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 28;
+    dst_pt.y = cur_pt.y + 29;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -366,7 +362,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Number of Castles:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 52;
+    dst_pt.y = cur_pt.y + 53;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -375,7 +371,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Number of Heroes:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 76;
+    dst_pt.y = cur_pt.y + 77;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -384,7 +380,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Gold in Treasury:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 100;
+    dst_pt.y = cur_pt.y + 101;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -394,7 +390,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Wood & Ore:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 124;
+    dst_pt.y = cur_pt.y + 125;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -404,7 +400,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Gems, Cr, Slf & Mer:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 148;
+    dst_pt.y = cur_pt.y + 149;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -414,7 +410,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Obelisks Found:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 172;
+    dst_pt.y = cur_pt.y + 173;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -424,7 +420,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Artifacts:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 196;
+    dst_pt.y = cur_pt.y + 197;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -435,7 +431,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Total Army Strength:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 220;
+    dst_pt.y = cur_pt.y + 221;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -445,7 +441,7 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Income:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 248;
+    dst_pt.y = cur_pt.y + 245;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -458,33 +454,34 @@ void Dialog::ThievesGuild( bool oracle )
     for ( Colors::const_iterator color = colors.begin(); color != colors.end(); ++color ) {
         text.Set( Color::String( *color ) );
         dst_pt.x = cur_pt.x + startx + ii * stepx - text.w() / 2;
-        dst_pt.y = cur_pt.y + 276;
+        dst_pt.y = cur_pt.y + 278;
         text.Blit( dst_pt.x, dst_pt.y );
         ++ii;
     }
 
     text.Set( _( "Best Hero:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 312;
+    dst_pt.y = cur_pt.y + 307;
     text.Blit( dst_pt.x, dst_pt.y );
 
-    dst_pt.x = cur_pt.x + startx;
+    dst_pt.x = cur_pt.x + startx + 1;
+    dst_pt.y -= 2;
     GetBestHeroArmyInfo( v, colors );
     DrawHeroIcons( v, dst_pt, stepx );
 
     text.Set( _( "Best Hero Stats:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 353;
+    dst_pt.y = cur_pt.y + 350;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
-    dst_pt.y -= 9;
+    dst_pt.y -= 13;
     if ( 1 < count )
         DrawHeroStats( v, dst_pt, stepx );
 
     text.Set( _( "Personality:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 394;
+    dst_pt.y = cur_pt.y + 392;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
@@ -494,17 +491,16 @@ void Dialog::ThievesGuild( bool oracle )
 
     text.Set( _( "Best Monster:" ) );
     dst_pt.x = cur_pt.x + textx - text.w();
-    dst_pt.y = cur_pt.y + 435;
+    dst_pt.y = cur_pt.y + 427;
     text.Blit( dst_pt.x, dst_pt.y );
 
     dst_pt.x = cur_pt.x + startx;
-    dst_pt.y -= 13;
+    dst_pt.y -= 9;
     if ( 3 < count )
         DrawBestMonsterIcons( colors, dst_pt, stepx );
 
     buttonExit.draw();
 
-    cursor.Show();
     display.render();
 
     LocalEvent & le = LocalEvent::Get();

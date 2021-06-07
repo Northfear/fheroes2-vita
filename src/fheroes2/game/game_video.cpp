@@ -33,9 +33,18 @@
 
 namespace
 {
-    const std::vector<std::string> videoDir = {"anim", System::ConcatePath( "heroes2", "anim" )};
+    const std::vector<std::string> videoDir = { "anim", System::ConcatePath( "heroes2", "anim" ), "data" };
 
-    bool IsFile( const std::string & fileName, std::string & path )
+    void drawRectangle( const fheroes2::Rect & roi, fheroes2::Image & image, const uint8_t color )
+    {
+        fheroes2::DrawRect( image, roi, color );
+        fheroes2::DrawRect( image, fheroes2::Rect( roi.x - 1, roi.y - 1, roi.width + 2, roi.height + 2 ), color );
+    }
+}
+
+namespace Video
+{
+    bool isVideoFile( const std::string & fileName, std::string & path )
     {
         std::string temp;
 
@@ -51,14 +60,14 @@ namespace
 
         return false;
     }
-}
 
-namespace Video
-{
-    size_t ShowVideo( const std::string & fileName, const VideoAction action, const std::vector<fheroes2::Rect> & roi )
+    int ShowVideo( const std::string & fileName, const VideoAction action, const std::vector<fheroes2::Rect> & roi )
     {
+        // Stop any cycling animation.
+        const fheroes2::ScreenPaletteRestorer screenRestorer;
+
         std::string videoPath;
-        if ( !IsFile( fileName, videoPath ) ) { // file doesn't exist, so no need to even try to load it
+        if ( !isVideoFile( fileName, videoPath ) ) { // file doesn't exist, so no need to even try to load it
             DEBUG_LOG( DBG_GAME, DBG_INFO, fileName << " file does not exist" );
             return 0;
         }
@@ -67,14 +76,17 @@ namespace Video
         if ( video.frameCount() < 1 ) // nothing to show
             return 0;
 
-        const bool isLooped = ( action == VideoAction::LOOP_VIDEO );
+        const bool isLooped = ( action == VideoAction::LOOP_VIDEO || action == VideoAction::PLAY_TILL_AUDIO_END );
 
-        const bool hideCursor = roi.empty();
+        // setup cursor
+        std::unique_ptr<const CursorRestorer> cursorRestorer;
 
-        if ( hideCursor ) {
-            Cursor::Get().Hide();
+        if ( roi.empty() ) {
+            cursorRestorer.reset( new CursorRestorer( false, Cursor::Get().Themes() ) );
         }
         else {
+            cursorRestorer.reset( new CursorRestorer( true, Cursor::Get().Themes() ) );
+
             Cursor::Get().setVideoPlaybackCursor();
         }
 
@@ -82,7 +94,7 @@ namespace Video
         display.fill( 0 );
 
         unsigned int currentFrame = 0;
-        const fheroes2::Point offset( ( display.width() - video.width() ) / 2, ( display.height() - video.height() ) / 2 );
+        fheroes2::Rect frameRoi( ( display.width() - video.width() ) / 2, ( display.height() - video.height() ) / 2, 0, 0 );
 
         const uint32_t delay = static_cast<uint32_t>( 1000.0 / video.fps() + 0.5 ); // This might be not very accurate but it's the best we can have now
 
@@ -95,32 +107,39 @@ namespace Video
             }
         }
 
-        // Detect some non-existing video such such using 1 FPS or the size of 20 x 20 pixels.
-        if ( std::fabs( video.fps() - 1.0 ) < 0.001 || ( video.width() == 20 && video.height() == 20 ) ) {
-            if ( hideCursor ) {
-                Cursor::Get().Show();
-            }
+        if ( action == VideoAction::IGNORE_VIDEO ) {
             return 0;
         }
 
-        const fheroes2::ScreenPaletteRestorer screenRestorer;
-
-        fheroes2::Image frame;
         std::vector<uint8_t> palette;
         std::vector<uint8_t> prevPalette;
 
         bool isFrameReady = false;
 
-        size_t roiChosenId = 0;
+        int roiChosenId = 0;
 
         const uint8_t selectionColor = 51;
 
         Game::passAnimationDelay( Game::CUSTOM_DELAY );
 
+        bool userMadeAction = false;
+
         LocalEvent & le = LocalEvent::Get();
-        while ( ( isLooped || currentFrame < video.frameCount() ) && le.HandleEvents() ) {
+        while ( le.HandleEvents( Game::isCustomDelayNeeded( delay ) ) ) {
+            if ( action == VideoAction::PLAY_TILL_AUDIO_END ) {
+                if ( !Mixer::isPlaying( -1 ) ) {
+                    break;
+                }
+            }
+            else if ( action != VideoAction::LOOP_VIDEO ) {
+                if ( currentFrame >= video.frameCount() ) {
+                    break;
+                }
+            }
+
             if ( roi.empty() ) {
                 if ( le.KeyPress() || le.MouseClickLeft() || le.MouseClickMiddle() || le.MouseClickRight() ) {
+                    userMadeAction = true;
                     Mixer::Reset();
                     break;
                 }
@@ -129,7 +148,7 @@ namespace Video
                 bool roiChosen = false;
                 for ( size_t i = 0; i < roi.size(); ++i ) {
                     if ( le.MouseClickLeft( roi[i] ) ) {
-                        roiChosenId = i;
+                        roiChosenId = static_cast<int>( i );
                         roiChosen = true;
                         break;
                     }
@@ -146,13 +165,11 @@ namespace Video
                     if ( currentFrame == 0 )
                         video.resetFrame();
 
-                    video.getNextFrame( frame, palette );
-
-                    fheroes2::Copy( frame, 0, 0, display, offset.x, offset.y, frame.width(), frame.height() );
+                    video.getNextFrame( display, frameRoi.x, frameRoi.y, frameRoi.width, frameRoi.height, palette );
 
                     for ( size_t i = 0; i < roi.size(); ++i ) {
                         if ( le.MouseCursor( roi[i] ) ) {
-                            fheroes2::DrawRect( display, roi[i], selectionColor );
+                            drawRectangle( roi[i], display, selectionColor );
                             break;
                         }
                     }
@@ -164,7 +181,7 @@ namespace Video
                     std::swap( prevPalette, palette );
                 }
 
-                display.render( fheroes2::Rect( offset.x, offset.y, frame.width(), frame.height() ) );
+                display.render( frameRoi );
 
                 ++currentFrame;
 
@@ -185,12 +202,11 @@ namespace Video
                     if ( currentFrame == 0 )
                         video.resetFrame();
 
-                    video.getNextFrame( frame, palette );
-                    fheroes2::Copy( frame, 0, 0, display, offset.x, offset.y, frame.width(), frame.height() );
+                    video.getNextFrame( display, frameRoi.x, frameRoi.y, frameRoi.width, frameRoi.height, palette );
 
                     for ( size_t i = 0; i < roi.size(); ++i ) {
                         if ( le.MouseCursor( roi[i] ) ) {
-                            fheroes2::DrawRect( display, roi[i], selectionColor );
+                            drawRectangle( roi[i], display, selectionColor );
                             break;
                         }
                     }
@@ -200,7 +216,7 @@ namespace Video
             }
         }
 
-        if ( action == VideoAction::WAIT_FOR_USER_INPUT ) {
+        if ( action == VideoAction::WAIT_FOR_USER_INPUT && !userMadeAction ) {
             while ( le.HandleEvents() ) {
                 if ( le.KeyPress() || le.MouseClickLeft() || le.MouseClickMiddle() || le.MouseClickRight() ) {
                     break;
@@ -209,13 +225,6 @@ namespace Video
         }
 
         display.fill( 0 );
-
-        if ( hideCursor ) {
-            Cursor::Get().Show();
-        }
-        else {
-            Cursor::Get().resetVideoPlaybackCursor();
-        }
 
         return roiChosenId;
     }

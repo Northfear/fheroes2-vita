@@ -97,6 +97,7 @@ namespace AI
         SpellcastOutcome spellSummonValue( const Spell & spell ) const;
         SpellcastOutcome spellEffectValue( const Spell & spell, const Battle::Units & targets ) const;
         double spellEffectValue( const Spell & spell, const Battle::Unit & target, bool targetIsLast, bool forDispell ) const;
+        uint32_t spellDurationMultiplier( const Battle::Unit & target ) const;
 
         // turn variables that wouldn't persist
         const HeroBase * _commander = nullptr;
@@ -119,7 +120,7 @@ namespace AI
     public:
         Normal();
         void KingdomTurn( Kingdom & kingdom ) override;
-        void CastleTurn( Castle & castle, bool defensive = false ) override;
+        void CastleTurn( Castle & castle, bool defensive ) override;
         void BattleTurn( Battle::Arena & arena, const Battle::Unit & currentUnit, Battle::Actions & actions ) override;
         void HeroesTurn( VecHeroes & heroes ) override;
 

@@ -169,50 +169,6 @@ buildstats_t _builds[] = {
     {BUILD_NOTHING, Race::NONE, {0, 0, 0, 0, 0, 0, 0}},
 };
 
-void BuildingInfo::UpdateCosts( const std::string & spec )
-{
-#ifdef WITH_XML
-    // parse buildings.xml
-    TiXmlDocument doc;
-
-    if ( doc.LoadFile( spec.c_str() ) ) {
-        const TiXmlElement * xml_buildings = doc.FirstChildElement( "buildings" );
-        if ( xml_buildings != NULL ) {
-            size_t index = 0;
-
-            for ( const TiXmlElement * xml_building = xml_buildings->FirstChildElement( "building" ); xml_building && BUILD_NOTHING != _builds[index].id2;
-                  xml_building = xml_building->NextSiblingElement( "building" ), ++index ) {
-                cost_t & cost = _builds[index].cost;
-                int value;
-
-                xml_building->Attribute( "gold", &value );
-                cost.gold = value;
-                xml_building->Attribute( "wood", &value );
-                cost.wood = value;
-                xml_building->Attribute( "mercury", &value );
-                cost.mercury = value;
-                xml_building->Attribute( "ore", &value );
-                cost.ore = value;
-                xml_building->Attribute( "sulfur", &value );
-                cost.sulfur = value;
-                xml_building->Attribute( "crystal", &value );
-                cost.crystal = value;
-                xml_building->Attribute( "gems", &value );
-                cost.gems = value;
-            }
-        }
-        else {
-            VERBOSE_LOG( spec << ": " << doc.ErrorDesc() );
-        }
-    }
-    else {
-        VERBOSE_LOG( spec << ": " << doc.ErrorDesc() );
-    }
-#else
-    (void)spec;
-#endif
-}
-
 payment_t BuildingInfo::GetCost( u32 build, int race )
 {
     payment_t payment;
@@ -313,7 +269,7 @@ BuildingInfo::BuildingInfo( const Castle & c, building_t b )
     building = castle.isBuild( b ) ? castle.GetUpgradeBuilding( b ) : b;
 
     if ( BUILD_TAVERN == building && Race::NECR == castle.GetRace() )
-        building = Settings::Get().PriceLoyaltyVersion() ? BUILD_SHRINE : BUILD_TAVERN;
+        building = ( Settings::Get().isCurrentMapPriceOfLoyalty() ) ? BUILD_SHRINE : BUILD_NOTHING;
 
     bcond = castle.CheckBuyBuilding( building );
 
@@ -447,7 +403,7 @@ void BuildingInfo::Redraw( void ) const
         }
 
         // build image
-        if ( BUILD_DISABLE == bcond && BUILD_TAVERN == building ) { // skip necromancer's tavern
+        if ( BUILD_NOTHING == building ) {
             fheroes2::Blit( fheroes2::AGG::GetICN( ICN::CASLXTRA, 0 ), display, area.x, area.y );
             return;
         }
@@ -511,12 +467,16 @@ bool BuildingInfo::QueueEventProcessing( fheroes2::ButtonBase & exitButton ) con
 
 bool BuildingInfo::DialogBuyBuilding( bool buttons ) const
 {
+    if ( building == BUILD_NOTHING ) {
+        return false;
+    }
+
     fheroes2::Display & display = fheroes2::Display::instance();
 
     const int system = ( Settings::Get().ExtGameEvilInterface() ? ICN::SYSTEME : ICN::SYSTEM );
 
-    const Cursor & cursor = Cursor::Get();
-    cursor.Hide();
+    // setup cursor
+    const CursorRestorer cursorRestorer( buttons, Cursor::POINTER );
 
     std::string box1str = description;
 
@@ -609,7 +569,6 @@ bool BuildingInfo::DialogBuyBuilding( bool buttons ) const
         button2.draw();
     }
 
-    cursor.Show();
     display.render();
 
     // message loop
@@ -653,16 +612,16 @@ std::string BuildingInfo::GetConditionDescription( void ) const
     switch ( bcond ) {
     case NOT_TODAY:
     case NEED_CASTLE:
-        res = GetBuildConditionDescription( bcond );
-        break;
+        return GetBuildConditionDescription( bcond );
 
     case BUILD_DISABLE:
         if ( building == BUILD_SHIPYARD ) {
             res = _( "Cannot build %{name} because castle is too far from water." );
             StringReplace( res, "%{name}", Castle::GetStringBuilding( BUILD_SHIPYARD, castle.GetRace() ) );
         }
-        else
+        else {
             res = "disable build.";
+        }
         break;
 
     case LACK_RESOURCES:
@@ -694,7 +653,9 @@ std::string BuildingInfo::GetConditionDescription( void ) const
 
 void BuildingInfo::SetStatusMessage( StatusBar & bar ) const
 {
-    std::string str;
+    if ( building == BUILD_NOTHING ) {
+        return;
+    }
 
     switch ( bcond ) {
     case NOT_TODAY:
@@ -704,14 +665,12 @@ void BuildingInfo::SetStatusMessage( StatusBar & bar ) const
     case LACK_RESOURCES:
     case REQUIRES_BUILD:
     case ALLOW_BUILD:
-        str = GetConditionDescription();
+        bar.ShowMessage( GetConditionDescription() );
         break;
 
     default:
         break;
     }
-
-    bar.ShowMessage( str );
 }
 
 DwellingItem::DwellingItem( const Castle & castle, u32 dw )

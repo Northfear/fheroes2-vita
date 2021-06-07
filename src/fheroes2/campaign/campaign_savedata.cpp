@@ -96,6 +96,12 @@ namespace Campaign
         }
     }
 
+    int CampaignSaveData::getLastCompletedScenarioID() const
+    {
+        assert( !_finishedMaps.empty() );
+        return _finishedMaps.back();
+    }
+
     const std::vector<Campaign::CampaignAwardData> CampaignSaveData::getObtainedCampaignAwards() const
     {
         std::vector<Campaign::CampaignAwardData> obtainedAwards;
@@ -122,7 +128,7 @@ namespace Campaign
     {
         const int loadVersion = Game::GetLoadVersion();
 
-        if ( loadVersion >= FORMAT_VERSION_090_RELEASE && loadVersion < FORMAT_VERSION_093_RELEASE ) {
+        if ( loadVersion < FORMAT_VERSION_093_RELEASE ) {
             std::vector<std::string> tempOldObtainedCampaignAwards;
             msg >> tempOldObtainedCampaignAwards;
         }

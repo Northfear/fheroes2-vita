@@ -20,6 +20,8 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <algorithm>
+
 #include "localevent.h"
 #include "audio_mixer.h"
 #include "audio_music.h"
@@ -225,10 +227,6 @@ LocalEvent::LocalEvent()
     , redraw_cursor_func( NULL )
     , keyboard_filter_func( NULL )
     , loop_delay( 1 )
-    , _isHiddenWindow( false )
-    , _isMusicPaused( false )
-    , _isSoundPaused( false )
-    , _musicVolume( 0 )
 {}
 
 #if SDL_VERSION_ATLEAST( 2, 0, 0 )
@@ -577,6 +575,10 @@ KeySym GetKeySym( int key )
         return KEY_RETURN; // repath to the normal Enter
     case SDLK_KP_EQUALS:
         return KEY_KP_EQUALS;
+    case SDLK_HOME:
+        return KEY_HOME;
+    case SDLK_END:
+        return KEY_END;
     }
 
     return KEY_NONE;
@@ -963,6 +965,12 @@ size_t InsertKeySym( std::string & res, size_t pos, KeySym sym, u16 mod )
         if ( pos < res.size() )
             ++pos;
         break;
+    case KEY_HOME:
+        pos = 0;
+        break;
+    case KEY_END:
+        pos = res.size();
+        break;
 
     default: {
         char c = CharFromKeySym( sym, mod );
@@ -1102,7 +1110,19 @@ LocalEvent & LocalEvent::GetClean()
 bool LocalEvent::HandleEvents( bool delay, bool allowExit )
 {
     if ( colorCycling.isRedrawRequired() ) {
-        fheroes2::Display::instance().render();
+        // Looks like there is no explicit rendering so the code for color cycling was executed here.
+        if ( delay ) {
+            fheroes2::Time timeCheck;
+            fheroes2::Display::instance().render();
+
+            if ( timeCheck.getMs() > loop_delay ) {
+                // Since rendering took more than waiting time so we should not wait.
+                delay = false;
+            }
+        }
+        else {
+            fheroes2::Display::instance().render();
+        }
     }
 
     SDL_Event event;
@@ -1137,17 +1157,7 @@ bool LocalEvent::HandleEvents( bool delay, bool allowExit )
             break;
 #else
         case SDL_ACTIVEEVENT:
-            if ( event.active.state & SDL_APPACTIVE ) {
-                if ( Mixer::isValid() ) {
-                    // iconify
-                    if ( 0 == event.active.gain ) {
-                        StopSounds();
-                    }
-                    else {
-                        ResumeSounds();
-                    }
-                }
-            }
+            OnActiveEvent( event );
             break;
 #endif
         // keyboard
@@ -1244,41 +1254,47 @@ bool LocalEvent::HandleEvents( bool delay, bool allowExit )
 
 void LocalEvent::StopSounds()
 {
-    _isHiddenWindow = true;
-    _isMusicPaused = Music::isPaused();
-    _isSoundPaused = ( Mixer::isPaused( -1 ) != 0 );
-    Mixer::Pause();
-    Music::Pause();
-    _musicVolume = Music::Volume( 0 );
+    Music::Mute();
+    Mixer::Mute();
 }
 
 void LocalEvent::ResumeSounds()
 {
-    if ( _isHiddenWindow ) {
-        Music::Volume( _musicVolume );
-        if ( !_isMusicPaused ) {
-            Music::Resume();
-        }
-        if ( !_isSoundPaused )
-            Mixer::Resume();
-        _isHiddenWindow = false;
-    }
+    Music::Unmute();
+    Mixer::Unmute();
 }
 
 #if SDL_VERSION_ATLEAST( 2, 0, 0 )
 void LocalEvent::OnSdl2WindowEvent( const SDL_Event & event )
 {
-    if ( !Mixer::isValid() ) {
-        return;
-    }
     if ( event.window.event == SDL_WINDOWEVENT_FOCUS_LOST ) {
         StopSounds();
     }
     else if ( event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED ) {
+        // Force display rendering on app activation
+        fheroes2::Display::instance().render();
+
         ResumeSounds();
     }
 }
+#else
+void LocalEvent::OnActiveEvent( const SDL_Event & event )
+{
+    if ( event.active.state & SDL_APPINPUTFOCUS ) {
+        if ( 0 == event.active.gain ) {
+            StopSounds();
+        }
+        else {
+            // Force display rendering on app activation
+            fheroes2::Display::instance().render();
 
+            ResumeSounds();
+        }
+    }
+}
+#endif
+
+#if SDL_VERSION_ATLEAST( 2, 0, 0 )
 void LocalEvent::HandleTouchEvent( const SDL_TouchFingerEvent & event )
 {
     if ( event.touchId != 0 )
@@ -1682,6 +1698,7 @@ void LocalEvent::HandleMouseWheelEvent( const SDL_MouseWheelEvent & wheel )
 bool LocalEvent::MouseClickLeft( void )
 {
     if ( ( modes & MOUSE_CLICKED ) && SDL_BUTTON_LEFT == mouse_button ) {
+        ResetModes( MOUSE_RELEASED );
         ResetModes( MOUSE_CLICKED );
 
         return true;
@@ -1693,6 +1710,7 @@ bool LocalEvent::MouseClickLeft( void )
 bool LocalEvent::MouseClickLeft( const fheroes2::Rect & rt )
 {
     if ( ( modes & MOUSE_CLICKED ) && SDL_BUTTON_LEFT == mouse_button && ( rt & mouse_pl ) && ( rt & mouse_rl ) ) {
+        ResetModes( MOUSE_RELEASED );
         ResetModes( MOUSE_CLICKED );
 
         return true;
@@ -1704,6 +1722,7 @@ bool LocalEvent::MouseClickLeft( const fheroes2::Rect & rt )
 bool LocalEvent::MouseClickMiddle( void )
 {
     if ( ( modes & MOUSE_CLICKED ) && SDL_BUTTON_MIDDLE == mouse_button ) {
+        ResetModes( MOUSE_RELEASED );
         ResetModes( MOUSE_CLICKED );
 
         return true;
@@ -1715,6 +1734,7 @@ bool LocalEvent::MouseClickMiddle( void )
 bool LocalEvent::MouseClickMiddle( const fheroes2::Rect & rt )
 {
     if ( ( modes & MOUSE_CLICKED ) && SDL_BUTTON_MIDDLE == mouse_button && ( rt & mouse_pm ) && ( rt & mouse_rm ) ) {
+        ResetModes( MOUSE_RELEASED );
         ResetModes( MOUSE_CLICKED );
 
         return true;
@@ -1726,6 +1746,7 @@ bool LocalEvent::MouseClickMiddle( const fheroes2::Rect & rt )
 bool LocalEvent::MouseClickRight( void )
 {
     if ( ( modes & MOUSE_CLICKED ) && SDL_BUTTON_RIGHT == mouse_button ) {
+        ResetModes( MOUSE_RELEASED );
         ResetModes( MOUSE_CLICKED );
 
         return true;
@@ -1737,6 +1758,7 @@ bool LocalEvent::MouseClickRight( void )
 bool LocalEvent::MouseClickRight( const fheroes2::Rect & rt )
 {
     if ( ( modes & MOUSE_CLICKED ) && SDL_BUTTON_RIGHT == mouse_button && ( rt & mouse_pr ) && ( rt & mouse_rr ) ) {
+        ResetModes( MOUSE_RELEASED );
         ResetModes( MOUSE_CLICKED );
 
         return true;

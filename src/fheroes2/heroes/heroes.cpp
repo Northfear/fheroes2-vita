@@ -140,6 +140,7 @@ Heroes::Heroes()
     , sprite_index( 18 )
     , patrol_square( 0 )
     , _alphaValue( 255 )
+    , _attackedMonsterTileIndex( -1 )
 {}
 
 Heroes::Heroes( int heroID, int race, int initialLevel )
@@ -169,6 +170,7 @@ Heroes::Heroes( int heroid, int rc )
     , sprite_index( 18 )
     , patrol_square( 0 )
     , _alphaValue( 255 )
+    , _attackedMonsterTileIndex( -1 )
 {
     name = _( Heroes::GetName( heroid ) );
 
@@ -254,11 +256,11 @@ void Heroes::LoadFromMP2( s32 map_index, int cl, int rc, StreamBuf st )
         }
 
         // fixed race for custom portrait (after level up)
-        if ( _race != rc )
-            _race = rc;
+        _race = rc;
     }
-    else
+    else {
         st.skip( 1 );
+    }
 
     // 3 artifacts
     PickupArtifact( Artifact( st.get() ) );
@@ -274,7 +276,7 @@ void Heroes::LoadFromMP2( s32 map_index, int cl, int rc, StreamBuf st )
     if ( experience == 0 )
         experience = GetStartingXp();
 
-    bool custom_secskill = ( st.get() != 0 );
+    const bool custom_secskill = ( st.get() != 0 );
 
     // custom skill
     if ( custom_secskill ) {
@@ -294,8 +296,9 @@ void Heroes::LoadFromMP2( s32 map_index, int cl, int rc, StreamBuf st )
             if ( ( *it ).isValid() )
                 secondary_skills.AddSkill( *it );
     }
-    else
+    else {
         st.skip( 16 );
+    }
 
     // unknown
     st.skip( 1 );
@@ -305,8 +308,9 @@ void Heroes::LoadFromMP2( s32 map_index, int cl, int rc, StreamBuf st )
         SetModes( NOTDEFAULTS );
         name = Game::GetEncodeString( st.toString( 13 ) );
     }
-    else
+    else {
         st.skip( 13 );
+    }
 
     // patrol
     if ( st.get() ) {
@@ -701,10 +705,7 @@ bool Heroes::Recruit( const Castle & castle )
 {
     if ( Recruit( castle.GetColor(), castle.GetCenter() ) ) {
         if ( castle.GetLevelMageGuild() ) {
-            // magic point
-            if ( !Modes( SAVE_SP_POINTS ) )
-                SetSpellPoints( GetMaxSpellPoints() );
-            // learn spell
+            // learn spells
             castle.MageGuildEducateHero( *this );
         }
         SetVisited( GetIndex() );
@@ -724,39 +725,6 @@ void Heroes::ActionNewDay( void )
     if ( isObjectTypeVisited( MP2::OBJ_STABLES ) )
         move_point += 400;
 
-    // recovery spell points
-    // if(HaveSpellBook())
-    {
-        u32 curr = GetSpellPoints();
-        u32 maxp = GetMaxSpellPoints();
-        const Castle * castle = inCastle();
-
-        // possible visit arteian spring 2 * max
-        if ( curr < maxp ) {
-            // in castle?
-            if ( castle && castle->GetLevelMageGuild() ) {
-                // restore from mage guild
-                if ( Settings::Get().ExtCastleGuildRestorePointsTurn() )
-                    curr += maxp * GameStatic::GetMageGuildRestoreSpellPointsPercentDay( castle->GetLevelMageGuild() ) / 100;
-                else
-                    curr = maxp;
-            }
-
-            // everyday
-            curr += GameStatic::GetHeroesRestoreSpellPointsPerDay();
-
-            // power ring action
-            int acount = HasArtifact( Artifact::POWER_RING );
-            if ( acount )
-                curr += acount * Artifact( Artifact::POWER_RING ).ExtraValue();
-
-            // secondary skill
-            curr += GetSecondaryValues( Skill::Secondary::MYSTICISM );
-
-            SetSpellPoints( curr > maxp ? maxp : curr );
-        }
-    }
-
     // remove day visit object
     visit_object.remove_if( Visit::isDayLife );
 
@@ -768,10 +736,6 @@ void Heroes::ActionNewWeek( void )
 {
     // remove week visit object
     visit_object.remove_if( Visit::isWeekLife );
-
-    // fix artesian spring effect
-    if ( GetSpellPoints() > GetMaxSpellPoints() )
-        SetSpellPoints( GetMaxSpellPoints() );
 }
 
 void Heroes::ActionNewMonth( void )
@@ -786,6 +750,44 @@ void Heroes::ActionAfterBattle( void )
     visit_object.remove_if( Visit::isBattleLife );
     //
     SetModes( ACTION );
+}
+
+void Heroes::ReplenishSpellPoints()
+{
+    const uint32_t maxp = GetMaxSpellPoints();
+    uint32_t curr = GetSpellPoints();
+
+    // spell points may be doubled in artesian spring, leave as is
+    if ( curr >= maxp ) {
+        return;
+    }
+
+    const Castle * castle = inCastle();
+
+    // in castle?
+    if ( castle && castle->GetLevelMageGuild() ) {
+        // restore from mage guild
+        if ( Settings::Get().ExtCastleGuildRestorePointsTurn() ) {
+            curr += maxp * GameStatic::GetMageGuildRestoreSpellPointsPercentDay( castle->GetLevelMageGuild() ) / 100;
+        }
+        else {
+            curr = maxp;
+        }
+    }
+
+    // everyday
+    curr += GameStatic::GetHeroesRestoreSpellPointsPerDay();
+
+    // power ring action
+    const int acount = HasArtifact( Artifact::POWER_RING );
+    if ( acount ) {
+        curr += acount * Artifact( Artifact::POWER_RING ).ExtraValue();
+    }
+
+    // secondary skill
+    curr += GetSecondaryValues( Skill::Secondary::MYSTICISM );
+
+    SetSpellPoints( std::min( curr, maxp ) );
 }
 
 void Heroes::RescanPathPassable( void )
@@ -851,16 +853,31 @@ bool Heroes::isObjectTypeVisited( int object, Visit::type_t type ) const
     return visit_object.end() != std::find_if( visit_object.begin(), visit_object.end(), [object]( const IndexObject & v ) { return v.isObject( object ); } );
 }
 
-/* set visited cell */
 void Heroes::SetVisited( s32 index, Visit::type_t type )
 {
     const Maps::Tiles & tile = world.GetTiles( index );
     int object = tile.GetObject( false );
 
-    if ( Visit::GLOBAL == type )
+    if ( Visit::GLOBAL == type ) {
         GetKingdom().SetVisited( index, object );
-    else if ( !isVisited( tile ) && MP2::OBJ_ZERO != object )
+    }
+    else if ( !isVisited( tile ) && MP2::OBJ_ZERO != object ) {
         visit_object.push_front( IndexObject( index, object ) );
+    }
+}
+
+void Heroes::setVisitedForAllies( const int32_t tileIndex ) const
+{
+    const Maps::Tiles & tile = world.GetTiles( tileIndex );
+    const int objectId = tile.GetObject( false );
+
+    // Set visited to all allies as well.
+    const Colors friendColors( Players::GetPlayerFriends( GetColor() ) );
+    for ( const int friendColor : friendColors ) {
+        if ( friendColor != GetColor() ) {
+            world.GetKingdom( friendColor ).SetVisited( tileIndex, objectId );
+        }
+    }
 }
 
 void Heroes::SetVisitedWideTile( s32 index, int object, Visit::type_t type )
@@ -1251,9 +1268,9 @@ void Heroes::LearnSkill( const Skill::Secondary & skill )
         secondary_skills.AddSkill( skill );
 }
 
-void Heroes::Scoute( void ) const
+void Heroes::Scoute( const int tileIndex ) const
 {
-    Maps::ClearFog( GetIndex(), GetScoute(), GetColor() );
+    Maps::ClearFog( tileIndex, GetScoute(), GetColor() );
 }
 
 int Heroes::GetScoute( void ) const
@@ -1320,14 +1337,17 @@ int Heroes::GetRangeRouteDays( s32 dst ) const
             return 1;
 
         total -= move_point;
-        if ( maxMovePoints >= total )
-            return 2;
 
-        total -= maxMovePoints;
-        if ( maxMovePoints >= total )
-            return 3;
+        int moveDays = 2;
+        while ( moveDays < 8 ) {
+            if ( maxMovePoints >= total )
+                return moveDays;
 
-        return 4;
+            total -= maxMovePoints;
+            ++moveDays;
+        }
+
+        return 8;
     }
     else {
         DEBUG_LOG( DBG_GAME, DBG_TRACE, "unreachable point: " << dst );
@@ -1389,7 +1409,7 @@ void Heroes::LevelUpSecondarySkill( const HeroSeedsForLevelUp & seeds, int prima
 
         // post action
         if ( selected.Skill() == Skill::Secondary::SCOUTING ) {
-            Scoute();
+            Scoute( GetIndex() );
         }
     }
 }
@@ -1460,7 +1480,6 @@ void Heroes::SetFreeman( int reason )
         SetModes( ACTION );
         if ( savepoints )
             SetModes( SAVE_MP_POINTS );
-        SetModes( SAVE_SP_POINTS );
     }
 }
 
@@ -1494,62 +1513,26 @@ void Heroes::SetMapsObject( int obj )
     save_maps_object = obj != MP2::OBJ_HEROES ? obj : MP2::OBJ_ZERO;
 }
 
-bool Heroes::AllowBattle( bool attacker ) const
-{
-    if ( !attacker )
-        switch ( world.GetTiles( GetIndex() ).GetObject( false ) ) {
-        case MP2::OBJ_TEMPLE:
-            return false;
-        default:
-            break;
-        }
-
-    return true;
-}
-
 void Heroes::ActionPreBattle( void ) {}
-
-void RedrawGameAreaAndHeroAttackMonster( Heroes & hero, s32 dst )
-{
-    // redraw gamearea for monster action sprite
-    if ( hero.isControlHuman() ) {
-        Interface::Basic & I = Interface::Basic::Get();
-        Cursor::Get().Hide();
-        I.GetGameArea().SetCenter( hero.GetCenter() );
-        I.RedrawFocus();
-        I.Redraw();
-        Cursor::Get().Show();
-        // force flip, for monster attack show sprite
-        fheroes2::Display::instance().render();
-    }
-    hero.Action( dst, true );
-}
 
 void Heroes::ActionNewPosition( void )
 {
-    const Settings & conf = Settings::Get();
-    // check around monster
-    MapsIndexes targets = Maps::GetTilesUnderProtection( GetIndex() );
+    // scan for monsters around
+    const MapsIndexes targets = Maps::GetTilesUnderProtection( GetIndex() );
 
-    if ( targets.size() ) {
-        bool skip_battle = false;
+    if ( !targets.empty() ) {
         SetMove( false );
         GetPath().Hide();
 
-        // first target
-        MapsIndexes::iterator it = std::find( targets.begin(), targets.end(), GetPath().GetDestinedIndex() );
-        if ( it != targets.end() ) {
-            RedrawGameAreaAndHeroAttackMonster( *this, *it );
-            targets.erase( it );
-            if ( conf.ExtWorldOnlyFirstMonsterAttack() )
-                skip_battle = true;
-        }
+        // first fight the monsters on the destination tile (if any)
+        MapsIndexes::const_iterator it = std::find( targets.begin(), targets.end(), GetPath().GetDestinedIndex() );
 
-        // other around targets
-        for ( it = targets.begin(); it != targets.end() && !isFreeman() && !skip_battle; ++it ) {
-            RedrawGameAreaAndHeroAttackMonster( *this, *it );
-            if ( conf.ExtWorldOnlyFirstMonsterAttack() )
-                skip_battle = true;
+        if ( it != targets.end() ) {
+            Action( *it, true );
+        }
+        // otherwise fight the monsters on the first adjacent tile
+        else {
+            Action( targets.front(), true );
         }
     }
 
@@ -1594,7 +1577,7 @@ void Heroes::Move2Dest( const int32_t dstIndex )
     if ( dstIndex != GetIndex() ) {
         world.GetTiles( GetIndex() ).SetHeroes( NULL );
         SetIndex( dstIndex );
-        Scoute();
+        Scoute( dstIndex );
         world.GetTiles( dstIndex ).SetHeroes( this );
     }
 }
@@ -1727,6 +1710,16 @@ std::string Heroes::String( void ) const
     return os.str();
 }
 
+int Heroes::GetAttackedMonsterTileIndex() const
+{
+    return _attackedMonsterTileIndex;
+}
+
+void Heroes::SetAttackedMonsterTileIndex( int idx )
+{
+    _attackedMonsterTileIndex = idx;
+}
+
 AllHeroes::AllHeroes()
 {
     reserve( HEROESMAXCOUNT + 2 );
@@ -1775,7 +1768,7 @@ void AllHeroes::Init( void )
     push_back( new Heroes( Heroes::BAX, Race::NECR, 5 ) );
 
     // loyalty version
-    if ( Settings::Get().PriceLoyaltyVersion() ) {
+    if ( Settings::Get().isCurrentMapPriceOfLoyalty() ) {
         push_back( new Heroes( Heroes::SOLMYR, Race::WZRD, 5 ) );
         push_back( new Heroes( Heroes::DAINWIN, Race::WRLK, 5 ) );
         push_back( new Heroes( Heroes::MOG, Race::NECR, 5 ) );
@@ -1788,10 +1781,18 @@ void AllHeroes::Init( void )
         push_back( new Heroes( Heroes::MARTINE, Race::SORC, 5 ) );
         push_back( new Heroes( Heroes::JARKONAS, Race::BARB, 5 ) );
     }
+    else {
+        // for non-PoL maps, just add unknown heroes instead in place of the PoL-specific ones
+        for ( int i = Heroes::SOLMYR; i <= Heroes::JARKONAS; ++i )
+            push_back( new Heroes( Heroes::UNKNOWN, Race::KNGT ) );
+    }
 
     // devel
     if ( IS_DEVEL() ) {
         push_back( new Heroes( Heroes::DEBUG_HERO, Race::WRLK ) );
+    }
+    else {
+        push_back( new Heroes( Heroes::UNKNOWN, Race::KNGT ) );
     }
 
     push_back( new Heroes( Heroes::UNKNOWN, Race::KNGT ) );
@@ -1917,7 +1918,7 @@ void AllHeroes::Scoute( int colors ) const
 {
     for ( const_iterator it = begin(); it != end(); ++it )
         if ( colors & ( *it )->GetColor() )
-            ( *it )->Scoute();
+            ( *it )->Scoute( ( *it )->GetIndex() );
 }
 
 Heroes * AllHeroes::FromJail( s32 index ) const

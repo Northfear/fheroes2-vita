@@ -24,6 +24,7 @@
 #define H2LOCALEVENT_H
 
 #include <string>
+#include <vector>
 
 #include "math_base.h"
 #include "timing.h"
@@ -161,6 +162,9 @@ enum KeySym
     KEY_KP_ENTER = SDLK_KP_ENTER,
     KEY_KP_EQUALS = SDLK_KP_EQUALS,
 
+    KEY_HOME = SDLK_HOME,
+    KEY_END = SDLK_END,
+
     KEY_LAST
 };
 
@@ -272,12 +276,14 @@ private:
     void HandleMouseMotionEvent( const SDL_MouseMotionEvent & );
     void HandleMouseButtonEvent( const SDL_MouseButtonEvent & );
     void HandleKeyboardEvent( const SDL_KeyboardEvent & );
+
     void StopSounds();
     void ResumeSounds();
 
 #if SDL_VERSION_ATLEAST( 2, 0, 0 )
-    void HandleMouseWheelEvent( const SDL_MouseWheelEvent & );
     static int GlobalFilterEvents( void *, SDL_Event * );
+
+    void HandleMouseWheelEvent( const SDL_MouseWheelEvent & );
     void HandleControllerAxisEvent( const SDL_ControllerAxisEvent & motion );
     void HandleControllerButtonEvent( const SDL_ControllerButtonEvent & button );
     void ProcessControllerAxisMotion();
@@ -286,6 +292,8 @@ private:
     void OnSdl2WindowEvent( const SDL_Event & event );
 #else
     static int GlobalFilterEvents( const SDL_Event * );
+
+    void OnActiveEvent( const SDL_Event & event );
 #endif
 
     enum flag_t
@@ -329,13 +337,7 @@ private:
     void ( *redraw_cursor_func )( s32, s32 );
     void ( *keyboard_filter_func )( int, int );
 
-    int loop_delay;
-
-    // These members are used for restoring music and sounds when an user reopens the window
-    bool _isHiddenWindow;
-    bool _isMusicPaused;
-    bool _isSoundPaused;
-    uint16_t _musicVolume;
+    uint32_t loop_delay;
 
     enum
     {

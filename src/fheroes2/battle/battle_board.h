@@ -24,6 +24,7 @@
 #define H2BATTLE_BOARD_H
 
 #include <functional>
+#include <random>
 
 #include "battle.h"
 #include "battle_cell.h"
@@ -52,7 +53,6 @@ namespace Battle
 
         void Reset( void );
 
-        fheroes2::Rect GetArea( void ) const;
         void SetArea( const fheroes2::Rect & );
 
         s32 GetIndexAbsPosition( const fheroes2::Point & ) const;
@@ -63,7 +63,7 @@ namespace Battle
         void SetPositionQuality( const Unit & ) const;
         void SetScanPassability( const Unit & );
 
-        void SetCobjObjects( const Maps::Tiles & );
+        void SetCobjObjects( const Maps::Tiles & tile, std::mt19937 & gen );
         void SetCovrObjects( int icn );
 
         static std::string GetMoatInfo( void );

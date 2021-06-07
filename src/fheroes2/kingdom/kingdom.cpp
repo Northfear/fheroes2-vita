@@ -38,6 +38,8 @@
 #include "visit.h"
 #include "world.h"
 
+#include <cassert>
+
 bool HeroesStrongestArmy( const Heroes * h1, const Heroes * h2 )
 {
     return h1 && h2 && h2->GetArmy().isStrongerThan( h1->GetArmy() );
@@ -166,7 +168,7 @@ void Kingdom::ActionNewDay( void )
         AddFundsResource( GetIncome() );
 
         // handle resource bonus campaign awards
-        if ( isControlHuman() && Settings::Get().GameType() & Game::TYPE_CAMPAIGN ) {
+        if ( isControlHuman() && Settings::Get().isCampaignGameType() ) {
             const std::vector<Campaign::CampaignAwardData> campaignAwards = Campaign::CampaignSaveData::Get().getObtainedCampaignAwards();
 
             for ( size_t i = 0; i < campaignAwards.size(); ++i ) {
@@ -270,8 +272,13 @@ std::string Kingdom::GetNamesHeroStartCondLoss( void ) const
 void Kingdom::RemoveHeroes( const Heroes * hero )
 {
     if ( hero ) {
-        if ( heroes.size() )
-            heroes.erase( std::find( heroes.begin(), heroes.end(), hero ) );
+        if ( !heroes.empty() ) {
+            auto it = std::find( heroes.begin(), heroes.end(), hero );
+            assert( it != heroes.end() );
+            if ( it != heroes.end() ) {
+                heroes.erase( it );
+            }
+        }
 
         Player * player = Settings::Get().GetPlayers().Get( GetColor() );
 
@@ -307,8 +314,13 @@ void Kingdom::AddCastle( const Castle * castle )
 void Kingdom::RemoveCastle( const Castle * castle )
 {
     if ( castle ) {
-        if ( castles.size() )
-            castles.erase( std::find( castles.begin(), castles.end(), castle ) );
+        if ( !castles.empty() ) {
+            auto it = std::find( castles.begin(), castles.end(), castle );
+            assert( it != castles.end() );
+            if ( it != castles.end() ) {
+                castles.erase( it );
+            }
+        }
 
         Player * player = Settings::Get().GetPlayers().Get( GetColor() );
 
@@ -485,7 +497,7 @@ Recruits & Kingdom::GetRecruits( void )
 void Kingdom::UpdateRecruits( void )
 {
     bool hasSpecialHireableHero = false;
-    if ( isControlHuman() && ( Settings::Get().GameType() & Game::TYPE_CAMPAIGN ) && world.CountWeek() < 2 ) {
+    if ( isControlHuman() && ( Settings::Get().isCampaignGameType() ) && world.CountWeek() < 2 ) {
         const std::vector<Campaign::CampaignAwardData> obtainedAwards = Campaign::CampaignSaveData::Get().getObtainedCampaignAwards();
 
         for ( size_t i = 0; i < obtainedAwards.size(); ++i ) {
@@ -647,11 +659,11 @@ Funds Kingdom::GetIncome( int type /* INCOME_ALL */ ) const
 
         for ( u32 index = 0; artifacts[index] != Artifact::UNKNOWN; ++index )
             for ( KingdomHeroes::const_iterator ith = heroes.begin(); ith != heroes.end(); ++ith )
-                totalIncome += ProfitConditions::FromArtifact( artifacts[index] ) * ( **ith ).GetBagArtifacts().Count( Artifact( artifacts[index] ) );
+                totalIncome += ProfitConditions::FromArtifact( artifacts[index] ) * ( **ith ).HasArtifact( Artifact( artifacts[index] ) );
 
         // TAX_LIEN
         for ( KingdomHeroes::const_iterator ith = heroes.begin(); ith != heroes.end(); ++ith )
-            totalIncome -= ProfitConditions::FromArtifact( Artifact::TAX_LIEN ) * ( **ith ).GetBagArtifacts().Count( Artifact( Artifact::TAX_LIEN ) );
+            totalIncome -= ProfitConditions::FromArtifact( Artifact::TAX_LIEN ) * ( **ith ).HasArtifact( Artifact( Artifact::TAX_LIEN ) );
     }
 
     if ( INCOME_HEROSKILLS & type ) {

@@ -21,6 +21,7 @@
  ***************************************************************************/
 
 #include <algorithm>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -221,7 +222,7 @@ StreamBase & StreamBase::operator<<( const float v )
 
 StreamBase & StreamBase::operator<<( const std::string & v )
 {
-    put32( v.size() );
+    put32( static_cast<uint32_t>( v.size() ) );
 
     for ( std::string::const_iterator it = v.begin(); it != v.end(); ++it )
         put8( *it );
@@ -400,7 +401,7 @@ void StreamBuf::put8( char v )
 u8 StreamBuf::get8()
 {
     if ( sizeg() )
-        return static_cast<u8>( 255u ) & *itget++;
+        return *itget++;
     else
         return 0u;
 }
@@ -471,10 +472,14 @@ void StreamBuf::putLE32( u32 v )
 
 std::vector<u8> StreamBuf::getRaw( size_t sz )
 {
-    std::vector<u8> v( sz ? sz : sizeg(), 0 );
+    const size_t remainSize = sizeg();
+    const size_t dataSize = sz > 0 ? sz : remainSize;
 
-    for ( std::vector<u8>::iterator it = v.begin(); it != v.end(); ++it )
-        *this >> *it;
+    std::vector<uint8_t> v( dataSize, 0 );
+    const size_t copySize = dataSize < remainSize ? dataSize : remainSize;
+    memcpy( v.data(), itget, copySize );
+
+    itget += copySize;
 
     return v;
 }
